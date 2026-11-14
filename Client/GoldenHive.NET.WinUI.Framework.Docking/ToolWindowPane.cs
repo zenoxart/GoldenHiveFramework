@@ -59,9 +59,10 @@ public sealed class ToolWindowPane : Grid
         };
         Tabs.TabCloseRequested += (_, e) =>
         {
+            // Close after the event - changing TabItems inside TabCloseRequested throws in WinUI.
             if (e.Tab.Tag is DockItem item)
             {
-                _manager.Close(item);
+                DispatcherQueue.TryEnqueue(() => _manager.Close(item));
             }
         };
         Tabs.TabDroppedOutside += (_, e) =>

@@ -54,9 +54,11 @@ public sealed class DockHost : Grid
         };
         Documents.TabCloseRequested += (_, e) =>
         {
+            // The TabView is still processing the close click: changing TabItems synchronously here throws
+            // ArgumentException in WinUI, so the close runs after the event.
             if (e.Tab.Tag is DockItem item)
             {
-                _manager.Close(item);
+                DispatcherQueue.TryEnqueue(() => _manager.Close(item));
             }
         };
         Documents.TabDroppedOutside += (_, e) =>
@@ -190,10 +192,7 @@ public sealed class DockHost : Grid
         {
             foreach (var tabView in new[] { Documents, Left.Tabs, Right.Tabs, Bottom.Tabs })
             {
-                if (tabView.TabItems.Contains(tab))
-                {
-                    tabView.TabItems.Remove(tab);
-                }
+                RemoveTab(tabView, tab);
             }
 
             tab.Content = null;
@@ -206,6 +205,32 @@ public sealed class DockHost : Grid
         Bottom.UpdateTitle();
         UpdateEmptyState();
         Layout();
+    }
+
+    /// <summary>Removes a tab by index; tolerates the TabView rejecting the change while it is busy (drag, close animation).</summary>
+    private static void RemoveTab(TabView tabView, TabViewItem tab)
+    {
+        var index = tabView.TabItems.IndexOf(tab);
+        if (index < 0)
+        {
+            return;
+        }
+
+        try
+        {
+            tabView.TabItems.RemoveAt(index);
+        }
+        catch (ArgumentException)
+        {
+            tabView.DispatcherQueue.TryEnqueue(() =>
+            {
+                var retry = tabView.TabItems.IndexOf(tab);
+                if (retry >= 0)
+                {
+                    tabView.TabItems.RemoveAt(retry);
+                }
+            });
+        }
     }
 
     internal void Select(DockItem item)
