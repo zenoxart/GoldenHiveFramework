@@ -1,21 +1,34 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.NotificationContracts
-// File    : EventTypes.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Catalogue of known event types.
-//
-// SYSTEM
-//   module.version.available, module.update.status, permissions.changed,
-//   maintenance.announced, command.failed, job.progress.
-//
-// DOMAIN (examples)
-//   documents.created, documents.updated, users.created, reports.ready.
-//
-// WORKFLOW
-//   workflow.instance.started, workflow.instance.waiting, workflow.instance.completed,
-//   workflow.instance.failed, workflow.approval.requested, workflow.approval.decided,
-//   workflow.impact.detected, workflow.trigger.suspended.
+namespace GoldenHive.NET.WinUI.Framework.NotificationContracts;
+
+/// <summary>Catalogue of known event types.</summary>
+public static class EventTypes
+{
+    // System
+    public const string ModuleVersionAvailable = "module.version.available";
+    public const string ModuleUpdateStatus = "module.update.status";
+    public const string ModulePublished = "module.published";
+    public const string PermissionsChanged = "permissions.changed";
+    public const string MaintenanceAnnounced = "maintenance.announced";
+    public const string CommandFailed = "command.failed";
+    public const string JobProgress = "job.progress";
+
+    // Domain
+    public const string DocumentCreated = "documents.created";
+    public const string DocumentUpdated = "documents.updated";
+    public const string InvoiceSubmitted = "documents.invoice.submitted";
+    public const string InvoiceApproved = "documents.invoice.approved";
+    public const string InvoiceRejected = "documents.invoice.rejected";
+    public const string UserCreated = "users.created";
+    public const string UserUpdated = "users.updated";
+    public const string ReportReady = "reports.ready";
+
+    // Workflow
+    public const string WorkflowInstanceStarted = "workflow.instance.started";
+    public const string WorkflowInstanceWaiting = "workflow.instance.waiting";
+    public const string WorkflowInstanceCompleted = "workflow.instance.completed";
+    public const string WorkflowInstanceFailed = "workflow.instance.failed";
+    public const string WorkflowApprovalRequested = "workflow.approval.requested";
+    public const string WorkflowApprovalDecided = "workflow.approval.decided";
+    public const string WorkflowImpactDetected = "workflow.impact.detected";
+    public const string WorkflowTriggerSuspended = "workflow.trigger.suspended";
+}

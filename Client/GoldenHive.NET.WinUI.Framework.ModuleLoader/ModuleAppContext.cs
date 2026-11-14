@@ -1,31 +1,176 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.ModuleLoader
-// File    : ModuleAppContext.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Child application context per loaded module version. Derives from ApplicationContext
-//   and implements IModuleContext. Created by ClientAppContext.CreateModuleContext(manifest).
-//
-// BEHAVIOUR
-//   - Parent: the ClientAppContext. Infrastructure services (Log, Languages, Dispatcher,
-//     Commands, Navigation, Notifications, Security, Windows) are passed through from the
-//     parent - a module never gets its own copies of framework services.
-//   - Produce<T>(): produces module objects (ViewModels, module services) with this context,
-//     so they automatically know their module; log entries are prefixed with the module ID.
-//   - Tracks everything the module registers through it (commands, command placements,
-//     navigation targets, event subscriptions, tree providers) and every produced object
-//     that is IDisposable.
-//   - Module-specific paths: ModuleDataPath = LocalDataPath\Modules\<moduleId>.
-//   - Api: HttpClient preconfigured for the module's backend route.
-//
-// UNLOAD / HOT-SWAP
-//   - Release(): unregister everything tracked, dispose produced objects, detach all
-//     ErrorOccurred handlers, drop the reference to the parent.
-//   - After Release no reference from the host may lead into the module's load context.
-//
-// WORKFLOWS
-//   Also tracks workflow step types and templates the module registers; on Release they are
-//   removed from the WorkflowManager (running instances were paused before by the HotSwapManager).
+using System.Globalization;
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.Docking;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using GoldenHive.NET.WinUI.Framework.Navigation;
+using GoldenHive.NET.WinUI.Framework.NotificationClient;
+using GoldenHive.NET.WinUI.Framework.NotificationContracts;
+using GoldenHive.NET.WinUI.Framework.Security;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+using GoldenHive.NET.WinUI.Framework.XamlMetadata;
+using Microsoft.UI.Xaml;
+
+namespace GoldenHive.NET.WinUI.Framework.ModuleLoader;
+
+/// <summary>
+/// The application context of one module (WIFI: AppKontext of the module) and its IModuleContext.
+/// ViewModels of the module are produced here (Produce&lt;T&gt;), share the host's log, languages and services, and every
+/// registration is tracked so <see cref="RemoveRegistrations"/> leaves no trace of the module behind.
+/// </summary>
+public sealed class ModuleAppContext : ApplicationContext, IModuleContext, IModuleHost
+{
+    private readonly IModuleHost _host;
+    private readonly List<IDisposable> _subscriptions = [];
+    private IModuleApi? _api;
+
+    public ModuleAppContext(IModuleHost host, ModuleManifest manifest, string folder)
+    {
+        _host = host;
+        Manifest = manifest;
+        Folder = folder;
+        Dispatcher = ((ApplicationContext)host).Dispatcher;
+        host.Backend.StateChanged += OnConnectionChanged;
+    }
+
+    public event EventHandler? ConnectionChanged;
+
+    public ModuleManifest Manifest { get; }
+
+    public string Folder { get; }
+
+    public string ModuleId => Manifest.ModuleId;
+
+    public override string Version => Manifest.Version;
+
+    /// <summary>Prefix of the module's TextKeys, commands and icons ("documents").</summary>
+    public string Prefix => string.IsNullOrEmpty(Manifest.Prefix) ? Manifest.ModuleId : Manifest.Prefix;
+
+    public string DataPath => Directory.CreateDirectory(Path.Combine(((ApplicationContext)_host).LocalDataPath, "ModuleData", ModuleId)).FullName;
+
+    public override LogManager Log => ((ApplicationContext)_host).Log;
+
+    public override LanguageManager Languages => ((ApplicationContext)_host).Languages;
+
+    public IModuleApi Api => _api ??= Backend.CreateApi(Manifest.Backend?.Route ?? $"/api/{Prefix}");
+
+    public ModuleUser CurrentUser => Backend.ModuleUser;
+
+    public bool IsConnected => Backend.State == ConnectionState.Online;
+
+    // ---- host services (modules and their ViewModels reach them through this context)
+
+    public RelayCommandPool Commands => _host.Commands;
+
+    public IconCatalog Icons => _host.Icons;
+
+    public NavigationService Navigation => _host.Navigation;
+
+    public DockManager Dock => _host.Dock;
+
+    public BackendConnection Backend => _host.Backend;
+
+    public UserProfileService Profile => _host.Profile;
+
+    public NotificationHubClient Hub => _host.Hub;
+
+    public NotificationRouter Router => _host.Router;
+
+    public InAppNotificationService InApp => _host.InApp;
+
+    public ModuleLoader Modules => _host.Modules;
+
+    public IWorkflowRegistrar? WorkflowRegistrar => _host.WorkflowRegistrar;
+
+    // ---- registrations
+
+    public void RegisterCommand(CommandDescriptor descriptor, ICommandHandler handler)
+    {
+        if (!descriptor.Id.StartsWith(Prefix + ".", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Write($"Module {ModuleId}: command '{descriptor.Id}' should start with '{Prefix}.'", LogEntryType.Warning, ModuleId);
+        }
+
+        Commands.Register(ModuleId, descriptor, handler);
+    }
+
+    public void RegisterGroup(CommandGroupDescriptor group) => Commands.RegisterGroup(ModuleId, group);
+
+    public void RegisterView(ModuleViewRegistration view) =>
+        Navigation.Registry.Register(new NavigationTarget(view.Key, ModuleId)
+        {
+            TextKey = view.TextKey,
+            Icon = view.Icon,
+            View = view.View,
+            IsModuleHome = view.IsModuleHome,
+            Group = view.Group ?? "modules",
+            Order = view.Order,
+            ShowInViewMenu = view.ShowInViewMenu,
+            Permission = view.Permission,
+            CreateViewModel = _ => (ViewModelAppObject)view.CreateViewModel(),
+            CreateView = vm => (FrameworkElement)view.CreateView(vm),
+        });
+
+    public void RegisterIcon(string name, string source)
+    {
+        var fullName = name.StartsWith(Prefix + ".", StringComparison.OrdinalIgnoreCase) ? name : $"{Prefix}.{name}";
+        if (source.StartsWith("image:", StringComparison.OrdinalIgnoreCase))
+        {
+            Icons.RegisterImage(fullName, new Uri(Path.Combine(Folder, source[6..])));
+        }
+        else
+        {
+            var hex = source.StartsWith("glyph:", StringComparison.OrdinalIgnoreCase) ? source[6..] : source;
+            Icons.RegisterGlyph(fullName, char.ConvertFromUtf32(int.Parse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture)));
+        }
+    }
+
+    public void RegisterTexts(string language, IReadOnlyDictionary<string, string> texts) => Languages.Register(Prefix, language, texts);
+
+    public IDisposable Subscribe(string eventType, Action<NotificationEnvelope> handler)
+    {
+        var subscription = Router.Subscribe(eventType, handler);
+        _subscriptions.Add(subscription);
+        return subscription;
+    }
+
+    public void RegisterWorkflowStepType(IWorkflowStepHandler handler) => WorkflowRegistrar?.RegisterStepType(ModuleId, handler);
+
+    public void RegisterWorkflowTemplate(WorkflowDefinition template) => WorkflowRegistrar?.RegisterTemplate(ModuleId, template);
+
+    // ---- services
+
+    public string GetText(string textKey) => Languages.GetText(textKey.Contains(':') ? textKey : $"{Prefix}:{textKey}");
+
+    public void WriteLog(string message, bool isError = false) =>
+        Log.Write(message, isError ? LogEntryType.Error : LogEntryType.Information, ModuleId);
+
+    public void Notify(string title, string? message = null, NotificationSeverity severity = NotificationSeverity.Info) =>
+        InApp.Show(title, message, severity);
+
+    public void NavigateTo(string navigationKey, string? parameter = null) => Navigation.NavigateTo(navigationKey, parameter);
+
+    public Task<bool> ExecuteCommandAsync(string commandId, object? parameter = null) => Commands.ExecuteAsync(commandId, parameter);
+
+    /// <summary>Removes everything the module registered (called on unload and before a hot-swap).</summary>
+    public void RemoveRegistrations()
+    {
+        foreach (var subscription in _subscriptions)
+        {
+            subscription.Dispose();
+        }
+
+        _subscriptions.Clear();
+        Backend.StateChanged -= OnConnectionChanged;
+        Commands.UnregisterModule(ModuleId);
+        Navigation.Registry.UnregisterModule(ModuleId);
+        Icons.UnregisterPrefix(Prefix);
+        Languages.Unregister(Prefix);
+        WorkflowRegistrar?.UnregisterModule(ModuleId);
+    }
+
+    public override string ToString() => $"ModuleAppContext({ModuleId} {Version})";
+
+    private void OnConnectionChanged(object? sender, EventArgs e) => ConnectionChanged?.Invoke(this, EventArgs.Empty);
+}

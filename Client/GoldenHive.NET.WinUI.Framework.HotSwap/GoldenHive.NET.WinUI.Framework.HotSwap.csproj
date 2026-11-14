@@ -26,6 +26,8 @@
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Commands\GoldenHive.NET.WinUI.Framework.Commands.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Navigation\GoldenHive.NET.WinUI.Framework.Navigation.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Mvvm\GoldenHive.NET.WinUI.Framework.Mvvm.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.NotificationClient\GoldenHive.NET.WinUI.Framework.NotificationClient.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Security\GoldenHive.NET.WinUI.Framework.Security.csproj" />
   </ItemGroup>
 
 </Project>

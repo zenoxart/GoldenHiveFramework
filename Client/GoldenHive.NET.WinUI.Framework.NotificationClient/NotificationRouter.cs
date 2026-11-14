@@ -1,17 +1,53 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.NotificationClient
-// File    : NotificationRouter.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Dispatches incoming events.
-//
-// TARGETS
-//   - System events (new module version, maintenance) -> HotSwapManager or shell.
-//   - Domain events (e.g. DocumentCreated) -> subscribed modules.
-//   - User notifications -> InAppNotificationService; in the background -> AppNotificationService.
-//
-// RULE
-//   Module subscriptions are removed automatically when a module is unloaded.
+using System.Collections.Concurrent;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using GoldenHive.NET.WinUI.Framework.NotificationContracts;
+
+namespace GoldenHive.NET.WinUI.Framework.NotificationClient;
+
+/// <summary>
+/// Distributes received events to subscribers: exact type ("documents.invoice.approved"), prefix ("workflow.*") or all ("*").
+/// Handlers run on the UI thread; a failing handler is logged and does not affect the others.
+/// </summary>
+public sealed class NotificationRouter : AppObject
+{
+    private readonly ConcurrentDictionary<Guid, (string Pattern, Action<NotificationEnvelope> Handler)> _subscriptions = new();
+
+    public IDisposable Subscribe(string pattern, Action<NotificationEnvelope> handler)
+    {
+        var id = Guid.NewGuid();
+        _subscriptions[id] = (pattern, handler);
+        return new Subscription(() => _subscriptions.TryRemove(id, out _));
+    }
+
+    public void Publish(NotificationEnvelope envelope)
+    {
+        foreach (var (pattern, handler) in _subscriptions.Values)
+        {
+            if (!Matches(pattern, envelope.Type))
+            {
+                continue;
+            }
+
+            try
+            {
+                handler(envelope);
+            }
+            catch (Exception ex)
+            {
+                AppContext.Log.Write($"Handler for '{envelope.Type}' failed: {ex.Message}", LogEntryType.Error, nameof(NotificationRouter), ex);
+            }
+        }
+    }
+
+    public static bool Matches(string pattern, string type) =>
+        pattern == "*" ||
+        (pattern.EndsWith(".*", StringComparison.Ordinal) && type.StartsWith(pattern[..^1], StringComparison.OrdinalIgnoreCase)) ||
+        pattern.Equals(type, StringComparison.OrdinalIgnoreCase);
+
+    private sealed class Subscription(Action dispose) : IDisposable
+    {
+        private Action? _dispose = dispose;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+}

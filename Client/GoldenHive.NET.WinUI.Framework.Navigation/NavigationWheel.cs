@@ -132,7 +132,7 @@ public sealed class NavigationWheel : Grid
     {
         var point = PointAt(radius, angle);
         var panel = new StackPanel { Width = 84, Spacing = 2, IsHitTestVisible = false };
-        var icon = _icons?.CreateIcon(segment.IsFloating ? "detach" : segment.Icon) ?? new FontIcon { Glyph = "" };
+        var icon = _icons?.CreateIcon(segment.IsFloating ? "detach" : segment.Icon) ?? new FontIcon { Glyph = "\uE8A5" };
         icon.Foreground = foreground;
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         if (icon is FontIcon fontIcon)

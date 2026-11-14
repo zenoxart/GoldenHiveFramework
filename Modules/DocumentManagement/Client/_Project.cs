@@ -1,22 +1,10 @@
-// =============================================================================
-// Project : GoldenHive.NET.Modules.DocumentManagement.Client
-// File    : _Project.cs
-// Layer   : Module DocumentManagement
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
+// GoldenHive.NET.Modules.DocumentManagement.Client
 //
-// PROJECT
-//   WinUI class library (net10.0-windows10.0.26100.0), shipped as a signed package
-//   and loaded by the ModuleLoader into its own load context.
+// Client part of the document-management module (codeOnly: views are built in code, no XAML metadata needed,
+// so the module can be hot-swapped). Loaded by the host's ModuleLoader into its own AssemblyLoadContext;
+// framework assemblies are referenced with Private=false and shared with the host.
 //
-// REFERENCES
-//   Framework contracts only (Contracts, ModuleContracts, CommandContracts,
-//   NotificationContracts) and GoldenHive.NET.WinUI.Framework.Mvvm - all with Private=false
-//   so they are not copied into the package.
-//
-// CONTENTS
-//   Document list, document view, upload, versions.
-//
-// RESOURCES
-//   Strings/<language>/ for the module's texts (all languages declared in the manifest) and
-//   Assets/Icons/ for module-specific icons (SVG preferred).
+//   DocumentManagementModule  entry point: texts, icons, views, commands, menu group, event subscriptions
+//   ViewModels/               Result-based ViewModels calling /api/documents through the module's IModuleApi
+//   Views/                    code-built UserControls (UiKit, DataList, InputForm)
+// The wire contracts are linked from ..\Contracts (shared with the backend).

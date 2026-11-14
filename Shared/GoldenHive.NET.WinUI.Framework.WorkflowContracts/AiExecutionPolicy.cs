@@ -1,24 +1,64 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.WorkflowContracts
-// File    : AiExecutionPolicy.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Controls whether and how the AI agent may execute a workflow.
-//
-// FIELDS
-//   - Autonomy:
-//       Off                  AI never runs this workflow.
-//       Suggest              AI pre-fills inputs; a human executes every step.
-//       ApproveCritical      AI runs, but steps flagged Critical wait for human approval.
-//       ApproveEachStep      AI proposes each step; a human approves it.
-//       Autonomous           AI runs all AiAllowed steps; Approval steps still need a human.
-//   - Allowed steps / commands (allow list); everything else is out of reach for the AI.
-//   - Approvers (users or roles) and approval timeout (then: cancel or escalate).
-//   - Limits: max runs per day, max steps per run, max tokens / cost per run, time limit.
-//   - Data scope: which variables and module data may be sent to the AI model;
-//     Sensitive input fields are never sent.
-//   - Model profile (from the Configuration Service), required confidence for automatic
-//     choices, and the fallback when the AI is unsure (hand over to a human).
+namespace GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+
+public enum AiAutonomy
+{
+    /// <summary>AI never runs this workflow.</summary>
+    Off,
+
+    /// <summary>AI pre-fills inputs; a human executes every step.</summary>
+    Suggest,
+
+    /// <summary>AI runs, but Critical steps wait for human approval.</summary>
+    ApproveCritical,
+
+    /// <summary>AI proposes each step; a human approves it.</summary>
+    ApproveEachStep,
+
+    /// <summary>AI runs all AiAllowed steps; Approval steps still need a human.</summary>
+    Autonomous,
+}
+
+public enum AiFallback
+{
+    HandOverToHuman,
+    Cancel,
+}
+
+/// <summary>Controls whether and how the AI agent may execute a workflow.</summary>
+public sealed record AiExecutionPolicy
+{
+    public AiAutonomy Autonomy { get; init; } = AiAutonomy.Off;
+
+    /// <summary>Allow list of step IDs (empty = all AiAllowed steps).</summary>
+    public IReadOnlyList<string> AllowedSteps { get; init; } = [];
+
+    /// <summary>Approvers (permission names) and approval timeout.</summary>
+    public IReadOnlyList<string> Approvers { get; init; } = [];
+
+    public int ApprovalTimeoutMinutes { get; init; } = 24 * 60;
+
+    public int MaxRunsPerDay { get; init; } = 100;
+
+    public int MaxStepsPerRun { get; init; } = 25;
+
+    public int MaxTokensPerRun { get; init; } = 20_000;
+
+    public int TimeLimitMinutes { get; init; } = 30;
+
+    /// <summary>Variables that may be sent to the AI model (empty = all non-sensitive variables).</summary>
+    public IReadOnlyList<string> DataScope { get; init; } = [];
+
+    public string ModelProfile { get; init; } = "default";
+
+    /// <summary>Required confidence (0..1) for automatic choices; below it the fallback applies.</summary>
+    public double RequiredConfidence { get; init; } = 0.7;
+
+    public AiFallback Fallback { get; init; } = AiFallback.HandOverToHuman;
+
+    public bool AllowsStep(WorkflowStep step) =>
+        Autonomy != AiAutonomy.Off && step.AiAllowed && !step.IsHumanOnly &&
+        (AllowedSteps.Count == 0 || AllowedSteps.Contains(step.Id, StringComparer.OrdinalIgnoreCase));
+
+    public bool NeedsApproval(WorkflowStep step) =>
+        Autonomy == AiAutonomy.ApproveEachStep || (Autonomy == AiAutonomy.ApproveCritical && step.Critical);
+}

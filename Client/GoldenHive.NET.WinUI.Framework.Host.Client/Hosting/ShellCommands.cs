@@ -11,7 +11,7 @@ internal static class ShellCommands
     private const string Module = ShortcutManager.ShellModuleId;
     private const string Menu = "shell.mainmenu";
 
-    public static void Register(ClientAppContext context, Func<MainWindow?> mainWindow)
+    public static void Register(ClientAppContext context, Func<MainWindow?> mainWindow, Func<StartupSequence?> startup)
     {
         var pool = context.Commands;
         var dock = context.Dock;
@@ -21,7 +21,26 @@ internal static class ShellCommands
         pool.RegisterGroup(Module, new CommandGroupDescriptor(Menu, "window") { TextKey = "shell:menu.window", Order = 2 });
         pool.RegisterGroup(Module, new CommandGroupDescriptor(Menu, "help") { TextKey = "shell:menu.help", Order = 3 });
         pool.RegisterGroup(Module, new CommandGroupDescriptor("shell.navigation", "general") { TextKey = "shell:group.general", Order = 0 });
-        pool.RegisterGroup(Module, new CommandGroupDescriptor("shell.navigation", "demo") { TextKey = "shell:group.demo", Order = 1 });
+        pool.RegisterGroup(Module, new CommandGroupDescriptor("shell.navigation", "workflow") { TextKey = "shell:group.workflow", Order = 1 });
+
+        var backend = context.Backend;
+        Add(pool, "shell.signin", "shell:command.signin", "signin", [new(Menu, "file", 0, 0)], [],
+            parameter => _ = startup()?.SignInAsync(),
+            _ => !backend.IsSignedIn);
+
+        Add(pool, "shell.signout", "shell:command.signout", "signout", [new(Menu, "file", 0, 1)], [],
+            _ => backend.SignOut(),
+            _ => backend.IsSignedIn);
+
+        Add(pool, "shell.modules.reload", "shell:command.reloadmodules", "refresh", [new(Menu, "file", 1, 0)], [],
+            parameter => _ = context.Modules.LoadAllAsync());
+
+        Add(pool, "shell.updates.apply", "shell:command.applyupdates", "sync", [new(Menu, "file", 1, 1)], [],
+            parameter => _ = context.HotSwap.ApplyPendingAsync(),
+            _ => context.HotSwap.Pending.Count > 0);
+
+        Add(pool, "shell.notifications.open", "shell:command.notifications", "notifications", [new(Menu, "view", 4)], ["Ctrl+Shift+N"],
+            _ => context.Navigation.NavigateTo(BuiltInViews.Notifications));
 
         Add(pool, "shell.exit", "shell:command.exit", "power", [new(Menu, "file", 9)], [],
             _ => mainWindow()?.Close());
@@ -75,6 +94,8 @@ internal static class ShellCommands
         // Enabled state of the window commands depends on the active view.
         dock.ActiveItemChanged += (_, _) => pool.RequeryAll();
         dock.LayoutChanged += (_, _) => pool.RequeryAll();
+        backend.StateChanged += (_, _) => context.Dispatcher?.Run(pool.RequeryAll);
+        context.HotSwap.PendingChanged += (_, _) => pool.Requery("shell.updates.apply");
     }
 
     private static void Add(RelayCommandPool pool, string id, string textKey, string icon, CommandPlacement[] placements, string[] shortcuts, Action<object?> execute, Func<object?, bool>? canExecute = null) =>

@@ -1,26 +1,60 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Workflows
-// File    : WorkflowRunner.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Executes one workflow instance on the client as a state machine.
-//
-// SEQUENCE PER STEP
-//   1. Resolve the step and evaluate its input mapping.
-//   2. Interactive steps: show the step through the WorkflowStepPresenter and wait for input;
-//      AI-assisted mode: show the AI's proposed values pre-filled for the user to confirm.
-//   3. Validate (client-side rules, then the module's ValidateAsync / server validation).
-//   4. Execute: Command steps through the central command manager, ModuleStep through the
-//      module's handler, Approval/WaitForEvent by parking the instance.
-//   5. Write outputs to variables, append a history entry, persist the instance.
-//   6. Evaluate transitions; continue, finish, or run compensation steps on failure.
-//
-// BEHAVIOUR
-//   - Back/next within the workflow; going back keeps entered values.
-//   - Persist after every step (WorkflowStore), so the user can close the app and resume
-//     later - on this or another device.
-//   - Long-running and waiting instances are moved to the server engine.
-//   - All state changes go through the command pool's dispatcher to the UI.
+using System.Text.Json.Nodes;
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.Monads;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using GoldenHive.NET.WinUI.Framework.Security;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts.Api;
+
+namespace GoldenHive.NET.WinUI.Framework.Workflows;
+
+/// <summary>
+/// Executes steps that need the client: commands without a headless endpoint (run through the central command manager)
+/// and module step types with a client handler. The result completes the step on the server.
+/// </summary>
+public sealed class WorkflowRunner : AppObject
+{
+    private WorkflowManager Workflows => Context<IWorkflowContext>().Workflows;
+
+    public bool CanRun(InboxItem item, WorkflowStep? step) =>
+        item.StepKind == WorkflowStepKind.Command && step?.CommandId is { } command && Context<ICommandContext>().Commands.GetDescriptor(command) is not null
+        || item.StepKind == WorkflowStepKind.ModuleStep && step?.StepTypeId is { } type && Workflows.StepTypes.ContainsKey(type);
+
+    public async Task<Result<WorkflowInstance>> RunAsync(InboxItem item, WorkflowStep step, CancellationToken ct = default)
+    {
+        var parameters = Evaluate(step, item.Variables);
+        if (step.Kind == WorkflowStepKind.Command && step.CommandId is { } commandId)
+        {
+            var parameter = parameters.Count == 1 ? parameters.First().Value?.ToString() : parameters.ToJsonString();
+            var executed = await Context<ICommandContext>().Commands.ExecuteAsync(commandId, parameter);
+            return executed
+                ? await Workflows.CompleteAsync(item.InstanceId, new CompleteStepRequest(step.Id) { Outputs = new JsonObject { ["executed"] = true } }, ct)
+                : Error.Conflict("workflow.command.notExecuted", "workflow:command.notExecuted");
+        }
+
+        if (step.StepTypeId is { } typeId && Workflows.StepTypes.TryGetValue(typeId, out var registration))
+        {
+            var context = new WorkflowStepContext(item.InstanceId, item.WorkflowId, step.Id, Context<ISecurityContext>().Backend.CurrentUser?.Id ?? Guid.Empty)
+            {
+                Variables = item.Variables,
+            };
+            return await registration.Handler.ValidateAsync(parameters, ct).ToResult()
+                .BindAsync(valid => registration.Handler.ExecuteAsync(valid, context, ct))
+                .BindAsync(outputs => Workflows.CompleteAsync(item.InstanceId, new CompleteStepRequest(step.Id) { Outputs = outputs }, ct));
+        }
+
+        return Error.NotFound("workflow.step.noClientHandler", "workflow:step.noClientHandler");
+    }
+
+    private static JsonObject Evaluate(WorkflowStep step, JsonObject variables)
+    {
+        var scope = WorkflowExpression.Scope(variables);
+        var result = new JsonObject();
+        foreach (var (name, expression) in step.Parameters)
+        {
+            result[name] = WorkflowExpression.ToNode(WorkflowExpression.Evaluate(expression, scope).GetValueOrDefault(null));
+        }
+
+        return result;
+    }
+}

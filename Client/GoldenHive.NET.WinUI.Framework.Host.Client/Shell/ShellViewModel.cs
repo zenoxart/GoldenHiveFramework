@@ -1,6 +1,7 @@
 using GoldenHive.NET.WinUI.Framework.CommandContracts;
 using GoldenHive.NET.WinUI.Framework.Host.Client.Hosting;
 using GoldenHive.NET.WinUI.Framework.Mvvm;
+using GoldenHive.NET.WinUI.Framework.Security;
 
 namespace GoldenHive.NET.WinUI.Framework.Host.Client.Shell;
 
@@ -12,6 +13,10 @@ public sealed class ShellViewModel : ViewModelAppObject
     private string _sizeClassText = string.Empty;
     private string _languageText = string.Empty;
     private string? _chordHint;
+    private string? _startupStatus;
+    private string _connectionText = string.Empty;
+    private string _userText = string.Empty;
+    private string _notificationText = string.Empty;
 
     public string StatusText
     {
@@ -37,7 +42,37 @@ public sealed class ShellViewModel : ViewModelAppObject
         private set => SetProperty(ref _languageText, value);
     }
 
+    /// <summary>Connection state (online/offline/signed out) plus "Live" when the event stream is connected.</summary>
+    public string ConnectionText
+    {
+        get => _connectionText;
+        private set => SetProperty(ref _connectionText, value);
+    }
+
+    /// <summary>Display name of the signed-in user.</summary>
+    public string UserText
+    {
+        get => _userText;
+        private set => SetProperty(ref _userText, value);
+    }
+
+    /// <summary>Unread notifications ("3 new"; empty when none).</summary>
+    public string NotificationText
+    {
+        get => _notificationText;
+        private set => SetProperty(ref _notificationText, value);
+    }
+
     private ClientAppContext Client => Context<ClientAppContext>();
+
+    /// <summary>Shows a startup status in the status line until the next status.</summary>
+    public void SetStartupStatus(string? text)
+    {
+        _startupStatus = text;
+        UpdateStatus();
+    }
+
+    public void OpenNotifications() => Client.Navigation.NavigateTo(BuiltInViews.Notifications);
 
     /// <summary>Shows the "waiting for the second key" hint of a chord (null hides it).</summary>
     public void SetChordHint(string? gesture)
@@ -51,6 +86,40 @@ public sealed class ShellViewModel : ViewModelAppObject
         UpdateTexts();
         AppContext.Languages.LanguageChanged += (_, _) => UpdateTexts();
         Client.Dock.ActiveItemChanged += (_, _) => OnActiveItemChanged();
+        Client.Backend.StateChanged += (_, _) => Run(UpdateConnection);
+        Client.Backend.SignedIn += (_, _) => Run(UpdateConnection);
+        Client.Backend.SignedOut += (_, _) => Run(UpdateConnection);
+        Client.Hub.ConnectionChanged += (_, _) => Run(UpdateConnection);
+        Client.InApp.Changed += (_, _) => Run(UpdateNotifications);
+    }
+
+    private void Run(Action action)
+    {
+        if (AppContext.Dispatcher is { } dispatcher)
+        {
+            dispatcher.Run(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
+    private void UpdateConnection()
+    {
+        var languages = AppContext.Languages;
+        var backend = Client.Backend;
+        var state = !backend.IsSignedIn ? "connection.signedout"
+            : backend.State == ConnectionState.Offline ? "connection.offline"
+            : "connection.online";
+        ConnectionText = languages.GetText("shell:" + state) + (backend.IsSignedIn && Client.Hub.IsConnected ? " · " + languages.GetText("shell:connection.live") : string.Empty);
+        UserText = backend.CurrentUser?.DisplayName ?? string.Empty;
+    }
+
+    private void UpdateNotifications()
+    {
+        var unread = Client.InApp.UnreadCount;
+        NotificationText = unread == 0 ? string.Empty : AppContext.Languages.GetText("shell:notifications.unread", new Dictionary<string, object?> { ["count"] = unread });
     }
 
     protected override void OnSizeClassChanged() =>
@@ -62,12 +131,14 @@ public sealed class ShellViewModel : ViewModelAppObject
         OnSizeClassChanged();
         LanguageText = AppContext.Languages.CurrentInfo.NativeName;
         OnActiveItemChanged();
+        UpdateConnection();
+        UpdateNotifications();
     }
 
     private void UpdateStatus() =>
-        StatusText = _chordHint is null
-            ? AppContext.Languages.GetText("shell:status.ready")
-            : AppContext.Languages.GetText("shell:status.chord", new Dictionary<string, object?> { ["gesture"] = _chordHint });
+        StatusText = _chordHint is not null
+            ? AppContext.Languages.GetText("shell:status.chord", new Dictionary<string, object?> { ["gesture"] = _chordHint })
+            : _startupStatus ?? AppContext.Languages.GetText("shell:status.ready");
 
     private void OnActiveItemChanged()
     {
@@ -75,6 +146,6 @@ public sealed class ShellViewModel : ViewModelAppObject
         ActiveTitle = item?.Title ?? string.Empty;
         Client.Commands.Shortcuts.ActiveScopes = item is null
             ? []
-            : [(ShortcutScope.View, item.NavigationKey), (ShortcutScope.Module, item.ModuleId)];
+            : new (ShortcutScope Scope, string? Key)[] { (ShortcutScope.View, item.NavigationKey), (ShortcutScope.Module, item.ModuleId) };
     }
 }

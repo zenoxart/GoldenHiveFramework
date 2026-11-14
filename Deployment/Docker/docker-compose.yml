@@ -1,24 +1,149 @@
 # =============================================================================
-# Project : Deployment
-# File    : docker-compose.yml
-# Layer   : Deployment
-# Status  : Architecture sketch - comments only, no implementation yet
+# Golden Hive - complete backend with Docker Compose
+#
+#   cd Deployment/Docker
+#   copy .env.example .env        (optional - the defaults work for a local demo)
+#   docker compose up --build -d
+#
+# Gateway: http://localhost:8080   (the WinUI client connects here)
+# Demo users: admin, maria.huber, lukas.berger, sophie.wagner, elena.rossi, david.novak - password GoldenHive!2026
+#
+# Only the gateway is published to the host (plus PostgreSQL on 5433 for database tools).
+# The database is created from ./database/*.sql the first time the volume is empty;
+# "docker compose down -v" resets everything to the demo data.
 # =============================================================================
-#
-# PURPOSE
-#   Local and small environments with Docker Compose.
-#
-# SERVICES
-#   api-gateway, identity-service, module-registry, module-delivery, update-orchestrator,
-#   notification-point, configuration-service,
-#   user-module, document-service, reporting-module,
-#   infrastructure: database, event bus (RabbitMQ), object storage for packages.
-#
-# RULES
-#   - Only the gateway exposes a port to the outside.
-#   - depends_on with condition: service_healthy.
-#   - Secrets via .env or Docker secrets, never in the repository.
-#
-# WORKFLOWS
-#   workflow-service and ai-agent-service join the services above; ai-agent-service gets
-#   outbound access to the AI provider only, through an egress proxy.
+
+name: goldenhive
+
+x-service: &service
+  restart: unless-stopped
+  networks: [goldenhive]
+  depends_on:
+    database:
+      condition: service_healthy
+  environment: &environment
+    ConnectionStrings__Database: "Host=database;Port=5432;Database=goldenhive;Username=goldenhive;Password=${POSTGRES_PASSWORD:-goldenhive}"
+    GoldenHive__JwtKey: "${GOLDENHIVE_JWT_KEY:-change-me-golden-hive-demo-signing-key-0123456789}"
+    GoldenHive__InternalKey: "${GOLDENHIVE_INTERNAL_KEY:-change-me-golden-hive-internal-key}"
+    GoldenHive__ShowErrorDetails: "${GOLDENHIVE_SHOW_ERROR_DETAILS:-false}"
+    GoldenHive__Services__api-gateway: "http://api-gateway:8080"
+    GoldenHive__Services__identity-service: "http://identity-service:8080"
+    GoldenHive__Services__configuration-service: "http://configuration-service:8080"
+    GoldenHive__Services__module-registry: "http://module-registry:8080"
+    GoldenHive__Services__module-delivery: "http://module-delivery:8080"
+    GoldenHive__Services__update-orchestrator: "http://update-orchestrator:8080"
+    GoldenHive__Services__notification-point: "http://notification-point:8080"
+    GoldenHive__Services__workflow-service: "http://workflow-service:8080"
+    GoldenHive__Services__ai-agent-service: "http://ai-agent-service:8080"
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [goldenhive]
+    environment:
+      POSTGRES_DB: goldenhive
+      POSTGRES_USER: goldenhive
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-goldenhive}"
+    ports:
+      - "5433:5432"
+    volumes:
+      - database:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goldenhive -d goldenhive"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------------------------------------------------------------- platform services
+  api-gateway:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.ApiGateway/Dockerfile }
+    image: goldenhive/api-gateway:1.0.0
+    ports:
+      - "${GOLDENHIVE_PORT:-8080}:8080"
+    depends_on:
+      identity-service: { condition: service_started }
+      module-registry: { condition: service_started }
+
+  identity-service:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.IdentityService/Dockerfile }
+    image: goldenhive/identity-service:1.0.0
+
+  configuration-service:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService/Dockerfile }
+    image: goldenhive/configuration-service:1.0.0
+
+  module-registry:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.ModuleRegistryService/Dockerfile }
+    image: goldenhive/module-registry:1.0.0
+
+  module-delivery:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.ModuleDeliveryService/Dockerfile }
+    image: goldenhive/module-delivery:1.0.0
+    volumes:
+      # Client packages; Deployment/ModulePackages/pack-modules.ps1 copies the module zips here.
+      - packages:/data/packages
+
+  update-orchestrator:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.UpdateOrchestrator/Dockerfile }
+    image: goldenhive/update-orchestrator:1.0.0
+
+  notification-point:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.NotificationPoint/Dockerfile }
+    image: goldenhive/notification-point:1.0.0
+    environment:
+      <<: *environment
+      # Backend subscribers of all events (workflow triggers).
+      GoldenHive__Subscribers__0: "http://workflow-service:8080/internal/events"
+      # Windows push for offline users (optional, Partner Center / Azure app registration).
+      GoldenHive__Wns__ClientId: "${GOLDENHIVE_WNS_CLIENT_ID:-}"
+      GoldenHive__Wns__ClientSecret: "${GOLDENHIVE_WNS_CLIENT_SECRET:-}"
+
+  workflow-service:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.WorkflowService/Dockerfile }
+    image: goldenhive/workflow-service:1.0.0
+
+  ai-agent-service:
+    <<: *service
+    build: { context: ../.., dockerfile: Backend/GoldenHive.NET.WinUI.Framework.Backend.AiAgentService/Dockerfile }
+    image: goldenhive/ai-agent-service:1.0.0
+    environment:
+      <<: *environment
+      # "rules" = deterministic offline agent (default); "openai" = any OpenAI-compatible endpoint.
+      GoldenHive__Ai__Provider: "${GOLDENHIVE_AI_PROVIDER:-rules}"
+      GoldenHive__Ai__Endpoint: "${GOLDENHIVE_AI_ENDPOINT:-https://api.openai.com/v1}"
+      GoldenHive__Ai__ApiKey: "${GOLDENHIVE_AI_API_KEY:-}"
+      GoldenHive__Ai__Model: "${GOLDENHIVE_AI_MODEL:-gpt-4o-mini}"
+      GoldenHive__Ai__Rules__ReviewAbove: "${GOLDENHIVE_AI_REVIEW_ABOVE:-20000}"
+
+  # ---------------------------------------------------------------- module backends
+  document-service:
+    <<: *service
+    build: { context: ../.., dockerfile: Modules/DocumentManagement/Backend/Dockerfile }
+    image: goldenhive/document-service:1.0.0
+
+  reporting-module:
+    <<: *service
+    build: { context: ../.., dockerfile: Modules/Reporting/Backend/Dockerfile }
+    image: goldenhive/reporting-module:1.0.0
+
+  user-module:
+    <<: *service
+    build: { context: ../.., dockerfile: Modules/UserManagement/Backend/Dockerfile }
+    image: goldenhive/user-module:1.0.0
+
+networks:
+  goldenhive:
+
+volumes:
+  database:
+  packages:

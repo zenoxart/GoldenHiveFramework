@@ -5,9 +5,6 @@
     <RootNamespace>GoldenHive.NET.WinUI.Framework.Backend.NotificationPoint</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- Library until Program.cs is implemented (it contains comments only, so there is no entry point yet).
-         Remove this line to build the service as an executable. -->
-    <OutputType>Library</OutputType>
   </PropertyGroup>
 
   <ItemGroup>

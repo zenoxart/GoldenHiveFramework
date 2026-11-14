@@ -1,15 +1,25 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Security
-// File    : PermissionService.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Client-side gating of features based on the user's permissions.
-//
-// RULES
-//   - For the UI only (hide/disable menus and buttons).
-//   - Every protected operation is authorized again on the server.
-//   - On a permission change (event from NotificationPoint) call RelayCommandPool.RequeryAll
-//     and rebuild the menu.
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Security;
+
+/// <summary>
+/// Permissions of the signed-in user on the client (for showing/enabling UI). The server authorizes every operation
+/// again - client checks are convenience, never security.
+/// </summary>
+public sealed class PermissionService : AppObject
+{
+    public event EventHandler? Changed;
+
+    private BackendConnection Backend => Context<ISecurityContext>().Backend;
+
+    public bool Has(string? permission) => Backend.Has(permission);
+
+    public IReadOnlyList<string> All => Backend.CurrentUser?.Permissions ?? [];
+
+    protected override void OnCreated()
+    {
+        Backend.SignedIn += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        Backend.SignedOut += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        Backend.PermissionsChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+    }
+}

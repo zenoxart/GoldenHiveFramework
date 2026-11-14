@@ -17,25 +17,6 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="*" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\Shared\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\Shared\GoldenHive.NET.WinUI.Framework.ModuleContracts\GoldenHive.NET.WinUI.Framework.ModuleContracts.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\Shared\GoldenHive.NET.WinUI.Framework.CommandContracts\GoldenHive.NET.WinUI.Framework.CommandContracts.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\Shared\GoldenHive.NET.WinUI.Framework.NotificationContracts\GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\Client\GoldenHive.NET.WinUI.Framework.Mvvm\GoldenHive.NET.WinUI.Framework.Mvvm.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\..\..\Shared\GoldenHive.NET.WinUI.Framework.WorkflowContracts\GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj">
-      <Private>false</Private>
-    </ProjectReference>
-  </ItemGroup>
+  <Import Project="..\..\ModuleClient.targets" />
 
 </Project>

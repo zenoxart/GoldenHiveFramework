@@ -5,6 +5,13 @@ namespace GoldenHive.NET.WinUI.Framework.Commands;
 /// <summary>Result data of a command execution.</summary>
 public sealed record CommandExecutedEventArgs(string CommandId, object? Parameter, Exception? Error);
 
+/// <summary>Lets the hot-swap layer count running executions per module and block a module while it is swapped.</summary>
+public interface ICommandExecutionGate
+{
+    /// <summary>Returns null when the module is being swapped; otherwise a scope ended after the execution and a token cancelled on swap.</summary>
+    (IDisposable Scope, CancellationToken Token)? Enter(string moduleId);
+}
+
 /// <summary>
 /// Runs commands uniformly: permission check (UI gating only - the server authorizes again),
 /// CanExecute, asynchronous execution, error reporting to the log instead of crashing the UI.
@@ -19,6 +26,9 @@ public sealed class CommandExecutor : AppObject
 
     public bool HasPermission(string? permission) => permission is null || PermissionCheck?.Invoke(permission) != false;
 
+    /// <summary>Optional gate (ModuleQuiescence) - module commands are counted and can be cancelled during a swap.</summary>
+    public ICommandExecutionGate? Gate { get; set; }
+
     public async Task<bool> ExecuteAsync(CommandRegistration registration, object? parameter, CancellationToken cancellationToken = default)
     {
         var id = registration.Descriptor.Id;
@@ -28,6 +38,14 @@ public sealed class CommandExecutor : AppObject
             return false;
         }
 
+        var gate = Gate?.Enter(registration.ModuleId);
+        if (Gate is not null && gate is null)
+        {
+            AppContext.Log.Write($"Command '{id}' rejected: module '{registration.ModuleId}' is being updated", LogEntryType.Information, nameof(CommandExecutor));
+            return false;
+        }
+
+        using var linked = gate is { } g ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, g.Token) : null;
         try
         {
             if (!registration.Handler.CanExecute(parameter))
@@ -35,7 +53,7 @@ public sealed class CommandExecutor : AppObject
                 return false;
             }
 
-            await registration.Handler.ExecuteAsync(parameter, cancellationToken);
+            await registration.Handler.ExecuteAsync(parameter, linked?.Token ?? cancellationToken);
             Executed?.Invoke(this, new CommandExecutedEventArgs(id, parameter, null));
             return true;
         }
@@ -48,6 +66,10 @@ public sealed class CommandExecutor : AppObject
             OnErrorOccurred(new InvalidOperationException($"Command '{id}' failed: {ex.Message}", ex));
             Executed?.Invoke(this, new CommandExecutedEventArgs(id, parameter, ex));
             return false;
+        }
+        finally
+        {
+            gate?.Scope.Dispose();
         }
     }
 }

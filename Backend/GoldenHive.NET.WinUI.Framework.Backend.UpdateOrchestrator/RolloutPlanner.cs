@@ -1,22 +1,38 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.UpdateOrchestrator
-// File    : RolloutPlanner.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Plans rollouts.
-//
-// BEHAVIOUR
-//   - Stages: pilot group -> subset of tenants -> everyone.
-//   - Backend first, backward compatible; then release the client module.
-//   - Per update decide: hot-swap possible or restart required (manifest hotSwap).
-//   - Watch error rates and health checks; trigger a rollback on problems.
-//   - Send a module.version.available event to NotificationPoint.
-//
-// WORKFLOW IMPACT
-//   - Before advancing a rollout stage, read the workflow impact summary.
-//   - Tenant policy decides: continue, hold the stage while Broken workflows exist,
-//     or continue and keep affected tenants on the previous module version until their
-//     workflows were reviewed.
+using GoldenHive.NET.WinUI.Framework.Contracts.Api;
+using GoldenHive.NET.WinUI.Framework.Monads;
+
+namespace GoldenHive.NET.WinUI.Framework.Backend.UpdateOrchestrator;
+
+/// <summary>Pure rules of a rollout (no I/O).</summary>
+public static class RolloutPlanner
+{
+    /// <summary>First stage of a new rollout: held when workflows would break, otherwise pilot.</summary>
+    public static (RolloutStage Stage, string? HoldReason) Start(int brokenWorkflows) =>
+        brokenWorkflows > 0
+            ? (RolloutStage.Held, $"{brokenWorkflows} workflow(s) would break with this version. Review them in the impact overview, then resume the rollout.")
+            : (RolloutStage.Pilot, null);
+
+    public static Result<RolloutStage> Advance(RolloutInfo rollout, bool force) => rollout.Stage switch
+    {
+        RolloutStage.Held when rollout.BrokenWorkflows > 0 && !force =>
+            Error.Conflict("updates.rollout.held", "updates:rollout.heldBrokenWorkflows").WithMetadata("broken", rollout.BrokenWorkflows),
+        RolloutStage.Held => RolloutStage.Pilot,
+        RolloutStage.Pilot => RolloutStage.Broad,
+        RolloutStage.Broad => RolloutStage.Complete,
+        _ => Error.Conflict("updates.rollout.finished", "updates:rollout.finished"),
+    };
+
+    public static Result<RolloutStage> Hold(RolloutInfo rollout) =>
+        rollout.Stage is RolloutStage.Pilot or RolloutStage.Broad ? RolloutStage.Held : Error.Conflict("updates.rollout.notActive", "updates:rollout.notActive");
+
+    public static Result<RolloutStage> Cancel(RolloutInfo rollout) =>
+        rollout.Stage is RolloutStage.Complete or RolloutStage.Cancelled ? Error.Conflict("updates.rollout.finished", "updates:rollout.finished") : RolloutStage.Cancelled;
+
+    /// <summary>The version a user should run while this rollout is the latest one of its module.</summary>
+    public static string VersionFor(RolloutInfo rollout, Guid userId) => rollout.Stage switch
+    {
+        RolloutStage.Pilot when rollout.PilotUsers.Contains(userId) => rollout.ToVersion,
+        RolloutStage.Broad or RolloutStage.Complete => rollout.ToVersion,
+        _ => rollout.FromVersion ?? rollout.ToVersion,
+    };
+}

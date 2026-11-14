@@ -1,20 +1,25 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService
-// File    : Program.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Entry point of the ConfigurationService service.
-//
-// STANDARD FOR EVERY SERVICE
-//   - Configuration via environment variables (container) and the Configuration Service.
-//   - Authentication via JWT from the Identity Service; authorization via policies.
-//   - Health checks: /health/live and /health/ready (for Compose/Kubernetes).
-//   - OpenTelemetry for logs, metrics and traces with a correlation ID.
-//   - Errors in the ApiError format (Problem Details).
-//
-// MONAD ARCHITECTURE
-//   - Register Backend.Core: ExceptionBoundaryMiddleware, pipeline steps, ResultHttpMapper.
-//   - Endpoints: request -> use case -> Result -> ResultHttpMapper (no try/catch in endpoints).
+using System.Text.Json;
+using GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Hosting;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Http;
+using GoldenHive.NET.WinUI.Framework.Contracts.Api;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddGoldenHiveDefaults("configuration-service");
+builder.Services.AddScoped<SettingsStore>();
+
+var app = builder.Build();
+app.UseGoldenHiveDefaults();
+
+var api = app.MapApi("/api/config/settings");
+api.MapGet("/", (SettingsStore store, CancellationToken ct) => store.ListAsync(ct).ToHttp());
+api.MapGet("/{key}", (string key, SettingsStore store, CancellationToken ct) => store.GetAsync(key, ct).ToHttp());
+api.MapPut("/{scope}/{key}", (string scope, string key, ConfigSettingUpdate update, SettingsStore store, CancellationToken ct) =>
+    store.SetAsync(scope, key, update.Value, ct).ToHttp());
+api.MapDelete("/{scope}/{key}", (string scope, string key, SettingsStore store, CancellationToken ct) => store.DeleteAsync(scope, key, ct).ToHttp());
+
+// Services read effective settings for a tenant (and optionally a user).
+app.MapInternal().MapGet("/settings/{key}", (string key, Guid tenant, Guid? user, SettingsStore store, CancellationToken ct) =>
+    store.Effective(tenant, user, key, ct).ToHttp());
+
+app.Run();

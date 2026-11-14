@@ -1,15 +1,4 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.NotificationPoint
-// File    : _Project.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PROJECT
-//   ASP.NET Core service (net10.0), run as its own Docker container.
-//   Central processing and distribution of events.
-//
-// CODE STYLE: MONAD ARCHITECTURE
-//   All operations are use cases built as Result pipelines (Backend.Core): validate, authorize,
-//   load, decide, persist, publish, project. No exceptions for expected failures; endpoints only
-//   map Results to HTTP via the ResultHttpMapper.
+// NotificationPoint (Docker container "notification-point", route /api/notifications)
+// Receives events from every service's outbox (POST /internal/events), stores them with a sequence number,
+// streams them to clients as server-sent events (catch-up via Last-Event-ID), forwards them to backend subscribers
+// (workflow triggers) and, if configured, to WNS push channels of users without a live connection.

@@ -1,15 +1,5 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.ModuleDeliveryService
-// File    : _Project.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PROJECT
-//   ASP.NET Core service (net10.0), run as its own Docker container.
-//   Delivery of signed client module packages.
-//
-// CODE STYLE: MONAD ARCHITECTURE
-//   All operations are use cases built as Result pipelines (Backend.Core): validate, authorize,
-//   load, decide, persist, publish, project. No exceptions for expected failures; endpoints only
-//   map Results to HTTP via the ResultHttpMapper.
+// ModuleDeliveryService (Docker container "module-delivery", route /api/packages)
+// Stores and serves the client packages (zip) of module versions. Every package is hashed (SHA-256) and signed
+// (ECDSA P-256); the client verifies hash and signature before it loads a module.
+// Packages are dropped into the volume (/data/packages/<moduleId>/<version>/<file>.zip) by the build script or
+// uploaded with PUT /api/packages/{moduleId}/{version}.

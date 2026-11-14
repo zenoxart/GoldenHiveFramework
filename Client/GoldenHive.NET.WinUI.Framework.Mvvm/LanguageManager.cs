@@ -22,7 +22,7 @@ public sealed class LanguageManager : AppObject
     public event EventHandler? LanguageChanged;
 
     /// <summary>Languages offered to the user.</summary>
-    public IReadOnlyList<LanguageInfo> Supported { get; private set; } = [new("en", "English"), new("de", "Deutsch")];
+    public IReadOnlyList<LanguageInfo> Supported { get; private set; } = new LanguageInfo[] { new("en", "English"), new("de", "Deutsch") };
 
     /// <summary>Fallback language when a text is missing in the current language.</summary>
     public string DefaultLanguage { get; set; } = "en";

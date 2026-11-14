@@ -87,4 +87,25 @@
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Docking\GoldenHive.NET.WinUI.Framework.Docking.csproj" />
   </ItemGroup>
 
+  <!--
+    Development modules: the module clients are built with the host (not referenced as assemblies - they are loaded
+    at runtime into their own AssemblyLoadContext). Each module build stages its dll + manifest.json into
+    artifacts\modules\<moduleId>\ (see Modules\ModuleClient.targets); they are copied to Modules\ next to the host
+    (and into the MSIX layout). The ModuleStore discovers them as "development" modules, so the client works
+    offline and before the packages were uploaded to the ModuleDelivery service.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\DocumentManagement\Client\GoldenHive.NET.Modules.DocumentManagement.Client.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\..\Modules\Reporting\Client\GoldenHive.NET.Modules.Reporting.Client.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\..\Modules\UserManagement\Client\GoldenHive.NET.Modules.UserManagement.Client.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <Target Name="IncludeDevelopmentModules" AfterTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_DevelopmentModuleFile Include="$(MSBuildThisFileDirectory)..\..\artifacts\modules\**\*.*" />
+      <Content Include="@(_DevelopmentModuleFile)" Link="Modules\%(_DevelopmentModuleFile.RecursiveDir)%(_DevelopmentModuleFile.Filename)%(_DevelopmentModuleFile.Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Message Importance="high" Text="Development modules: @(_DevelopmentModuleFile->Count()) files" />
+  </Target>
+
 </Project>

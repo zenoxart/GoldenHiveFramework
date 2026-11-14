@@ -92,7 +92,7 @@ public sealed class NavigationWheelViewModel : ViewModelAppObject
             })
             .ToList();
 
-        _segments = [.. modules, .. openViews];
+        _segments = modules.Concat(openViews).ToArray();
         var ring = modules.Count > 0 ? modules : openViews;
         _selected = ring.Count switch
         {

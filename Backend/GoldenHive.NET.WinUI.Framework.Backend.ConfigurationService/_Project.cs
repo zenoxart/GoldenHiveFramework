@@ -1,15 +1,3 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService
-// File    : _Project.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PROJECT
-//   ASP.NET Core service (net10.0), run as its own Docker container.
-//   Tenant, user and module settings.
-//
-// CODE STYLE: MONAD ARCHITECTURE
-//   All operations are use cases built as Result pipelines (Backend.Core): validate, authorize,
-//   load, decide, persist, publish, project. No exceptions for expected failures; endpoints only
-//   map Results to HTTP via the ResultHttpMapper.
+// ConfigurationService (Docker container "configuration-service", route /api/config)
+// Tenant and user settings (JSON values) - e.g. AI model profile, pilot users of rollouts, auto-migration of workflows,
+// shell language. Other services read settings through the internal API.

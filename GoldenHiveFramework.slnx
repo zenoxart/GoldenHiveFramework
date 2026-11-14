@@ -5,7 +5,10 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Solution Items/">
+    <File Path="README.md" />
     <File Path="ARCHITECTURE.md" />
+    <File Path=".dockerignore" />
+    <File Path=".gitignore" />
   </Folder>
   <Folder Name="/Client/">
     <Project Path="Client/GoldenHive.NET.WinUI.Framework.Host.Client/GoldenHive.NET.WinUI.Framework.Host.Client.csproj">
@@ -90,9 +93,11 @@
     <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.AiAgentService/GoldenHive.NET.WinUI.Framework.Backend.AiAgentService.csproj" />
     <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.Core/GoldenHive.NET.WinUI.Framework.Backend.Core.csproj" />
   </Folder>
-  <Folder Name="/Modules/" />
+  <Folder Name="/Modules/">
+    <File Path="Modules/ModuleClient.targets" />
+  </Folder>
   <Folder Name="/Modules/DocumentManagement/">
-    <File Path="Modules/DocumentManagement/manifest.jsonc" />
+    <File Path="Modules/DocumentManagement/manifest.json" />
     <Project Path="Modules/DocumentManagement/Backend/GoldenHive.NET.Modules.DocumentManagement.Backend.csproj" />
     <Project Path="Modules/DocumentManagement/Client/GoldenHive.NET.Modules.DocumentManagement.Client.csproj">
       <Platform Solution="*|ARM64" Project="ARM64" />
@@ -101,7 +106,7 @@
     </Project>
   </Folder>
   <Folder Name="/Modules/Reporting/">
-    <File Path="Modules/Reporting/manifest.jsonc" />
+    <File Path="Modules/Reporting/manifest.json" />
     <Project Path="Modules/Reporting/Backend/GoldenHive.NET.Modules.Reporting.Backend.csproj" />
     <Project Path="Modules/Reporting/Client/GoldenHive.NET.Modules.Reporting.Client.csproj">
       <Platform Solution="*|ARM64" Project="ARM64" />
@@ -110,7 +115,7 @@
     </Project>
   </Folder>
   <Folder Name="/Modules/UserManagement/">
-    <File Path="Modules/UserManagement/manifest.jsonc" />
+    <File Path="Modules/UserManagement/manifest.json" />
     <Project Path="Modules/UserManagement/Backend/GoldenHive.NET.Modules.UserManagement.Backend.csproj" />
     <Project Path="Modules/UserManagement/Client/GoldenHive.NET.Modules.UserManagement.Client.csproj">
       <Platform Solution="*|ARM64" Project="ARM64" />
@@ -121,8 +126,19 @@
   <Folder Name="/Deployment/">
     <File Path="Deployment/CI-CD/pipeline.yml" />
     <File Path="Deployment/Docker/docker-compose.yml" />
+    <File Path="Deployment/Docker/.env.example" />
     <File Path="Deployment/Kubernetes/module-deployment-template.yaml" />
     <File Path="Deployment/ModulePackages/README.md" />
+    <File Path="Deployment/ModulePackages/pack-modules.ps1" />
     <File Path="Deployment/Msix/README.md" />
+  </Folder>
+  <Folder Name="/Deployment/Database/">
+    <File Path="Deployment/Docker/database/01-schema.sql" />
+    <File Path="Deployment/Docker/database/02-demo-data.sql" />
+    <File Path="Deployment/Docker/database/03-demo-modules-workflows.sql" />
+    <File Path="Deployment/Docker/database/04-demo-events.sql" />
+  </Folder>
+  <Folder Name="/Deployment/DemoUpdates/">
+    <File Path="Deployment/ModulePackages/demo-updates/document-management-1.1.0.json" />
   </Folder>
 </Solution>

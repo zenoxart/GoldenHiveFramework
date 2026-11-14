@@ -1,16 +1,5 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Workflows
-// File    : _Project.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PROJECT
-//   WinUI class library for workflows on the client: running, designing, impact overview,
-//   AI hand-over and approvals. Builds on Mvvm, Commands, Navigation, NotificationClient,
-//   Security, XamlMetadata and HotSwap.
-//
-// CONTENTS
-//   WorkflowManager, WorkflowRunner, WorkflowStepPresenter, WorkflowStore,
-//   WorkflowDesignerViewModel, WorkflowRecorder, WorkflowImpactViewModel,
-//   AiApprovalInboxViewModel, WorkflowInboxViewModel.
+// GoldenHive.NET.WinUI.Framework.Workflows
+// Workflows in the client: the inbox (tasks and AI proposals of the signed-in user), the workflow list with details,
+// versions, instances and history, the JSON designer with the shared validation, the recorder (records workflow-capable
+// commands into a draft), client-side steps (commands without headless endpoint, module step handlers), the impact
+// overview after module updates and the AI agent panel (status, kill switch, audit).

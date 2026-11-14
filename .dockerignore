@@ -1,0 +1,11 @@
+# Build context of the service images is the repository root - send only what the backend needs.
+**/bin/
+**/obj/
+**/.vs/
+.git/
+Client/
+**/*.user
+**/*.ico
+**/*.png
+Deployment/Docker/database/
+Deployment/ModulePackages/

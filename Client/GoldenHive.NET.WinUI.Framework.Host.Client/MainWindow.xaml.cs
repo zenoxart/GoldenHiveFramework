@@ -30,11 +30,36 @@ public sealed partial class MainWindow : Window
         context.Languages.LanguageChanged += (_, _) => UpdateTexts();
 
         context.Windows.Track(this, "main", 480, 400, isMain: true);
-        context.Dock.RestoreLayout(BuiltInViews.DefaultLayout);
+        Activated += (_, e) => IsActive = e.WindowActivationState != WindowActivationState.Deactivated;
         Closed += OnClosed;
     }
 
     public ShellView Shell { get; }
+
+    /// <summary>Puts the profile of the signed-in user into the right side of the title bar.</summary>
+    public void AttachProfile(Func<Task> signIn) => AppTitleBar.RightHeader = new ProfileButton(_context, this, signIn);
+
+    /// <summary>True while the window has the focus (toasts are only shown when it has not).</summary>
+    public bool IsActive { get; private set; }
+
+    /// <summary>Runs <paramref name="action"/> once the content is loaded (XamlRoot available for dialogs).</summary>
+    public void WhenLoaded(Func<Task> action)
+    {
+        var root = (FrameworkElement)Content;
+        if (root.IsLoaded)
+        {
+            DispatcherQueue.TryEnqueue(async () => await action());
+            return;
+        }
+
+        void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            root.Loaded -= OnLoaded;
+            DispatcherQueue.TryEnqueue(async () => await action());
+        }
+
+        root.Loaded += OnLoaded;
+    }
 
     /// <summary>Focuses the command palette and shows all commands.</summary>
     public void FocusPalette()
@@ -75,6 +100,9 @@ public sealed partial class MainWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        _context.Hub.Stop();
+        _context.HotSwap.Stop();
+        _context.Toasts.Unregister();
         _context.Dock.Shutdown();
         _context.Windows.Placements.Save();
         _context.Log.Write("Golden Hive ends", LogEntryType.End, nameof(MainWindow));

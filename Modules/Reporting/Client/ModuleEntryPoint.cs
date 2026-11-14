@@ -1,39 +1,41 @@
-// =============================================================================
-// Project : GoldenHive.NET.Modules.Reporting.Client
-// File    : ModuleEntryPoint.cs
-// Layer   : Module Reporting
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Entry point of the reporting module (IModuleEntryPoint).
-//
-// INITIALIZE
-//   - Receives its ModuleAppContext; produces its services and ViewModels only through
-//     context.Produce<T>() (API client for /api/reports).
-//   - Register commands prefixed with the module ID with the central command manager,
-//     each with its placements (main menu, context menus, navigation tree).
-//   - Register group descriptors for the module's own submenus if needed.
-//   - Add navigation targets and menu items (report catalogue, parameter dialog, result view).
-//   - Subscribe to events with the NotificationRouter.
-//
-// SHUTDOWN
-//   Cancel running requests, detach subscriptions and handlers, keep no static references.
-//
-// WORKFLOWS
-//   - Register the module's workflow step types (IWorkflowStepHandler) and input schemas.
-//   - Register workflow templates, e.g.: Monthly report: schedule (1st of month) -> choose period -> run report -> review -> distribute.
-//   - Mark commands as WorkflowCapable / AiAllowed in their descriptors.
-//
-// NAVIGATION WHEEL
-//   - The module's home target becomes its segment in the wheel automatically.
-//   - Register the most important views with a placement under shell.wheel/<moduleId>
-//     so they appear in the module's outer ring.
-//
-// SHORTCUTS
-//   - Suggest DefaultShortcuts in the command descriptors, scoped to the module or its views
-//     (never Global unless really needed); reserved shell shortcuts are rejected.
-//
-// DOCK LAYOUT
-//   - Register a ViewDescriptor per view: main views as Documents, helper panels (e.g. filters,
-//     details, previews) as ToolWindows with a default dock side.
+using GoldenHive.NET.Modules.Reporting.Client.ViewModels;
+using GoldenHive.NET.Modules.Reporting.Client.Views;
+using GoldenHive.NET.Modules.Reporting.Contracts;
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.ModuleLoader.Sdk;
+
+namespace GoldenHive.NET.Modules.Reporting.Client;
+
+/// <summary>Entry point of the reporting module.</summary>
+public sealed class ReportingModule : ModuleEntryPoint
+{
+    public const string Catalog = "reports.catalog";
+    public const string Runs = "reports.runs";
+
+    protected override void OnInitialize()
+    {
+        Texts("en", ReportTexts.English);
+        Texts("de", ReportTexts.German);
+        Icon("home", "E9D9");
+        Icon("runs", "E81C");
+        Icon("run", "E768");
+
+        View<ReportCatalogViewModel>(Catalog, "reports:view.catalog", "reports.home", vm => new ReportCatalogView(vm), home: true, order: 0, permission: ReportPermissions.View);
+        View<ReportRunsViewModel>(Runs, "reports:view.runs", "reports.runs", vm => new ReportRunsView(vm),
+            new ViewDescriptor { Role = ViewRole.ToolWindow, DefaultDock = DockSide.Bottom, MinHeight = 160 }, order: 1, permission: ReportPermissions.View);
+
+        MenuGroup("reports:menu", order: 30);
+        NavigationGroup("reports:module", order: 30);
+        Command("reports.open", "reports:cmd.open", "reports.home", _ => Go(Catalog), permission: ReportPermissions.View, placements: new CommandPlacement[] { InMenu(0, 0) });
+        Command("reports.runs.open", "reports:cmd.runs", "reports.runs", _ => Go(Runs), permission: ReportPermissions.View, placements: new CommandPlacement[] { InMenu(0, 1) });
+        Command("reports.run", "reports:cmd.run", "reports.run", parameter => Go(Catalog, parameter as string), permission: ReportPermissions.Run,
+            workflowCapable: true, aiAllowed: true);
+    }
+
+    private Task Go(string key, string? parameter = null)
+    {
+        Module.NavigateTo(key, parameter);
+        return Task.CompletedTask;
+    }
+}

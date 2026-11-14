@@ -12,8 +12,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The only external package of the backend: the PostgreSQL driver (used in Data/PostgresDataSource.cs). -->
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.Monads\GoldenHive.NET.WinUI.Framework.Monads.csproj" />
     <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj" />
+    <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.NotificationContracts\GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj" />
   </ItemGroup>
 
 </Project>

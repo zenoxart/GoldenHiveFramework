@@ -1,16 +1,36 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.HotSwap
-// File    : UnloadMonitor.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Watches whether an old ModuleLoadContext is actually unloaded.
-//
-// BEHAVIOUR
-//   - Call Unload(), keep the context only through a WeakReference.
-//   - Trigger GC several times and check whether the WeakReference is released.
-//   - If the context stays alive (typically WinRT/XAML objects holding references),
-//     log it and track the memory used.
-//   - Above a threshold: show "restart recommended" in the shell.
+using GoldenHive.NET.WinUI.Framework.ModuleLoader;
+
+namespace GoldenHive.NET.WinUI.Framework.HotSwap;
+
+/// <summary>A replaced module version that may still be in memory.</summary>
+public sealed record RetiredModule(string ModuleId, string Version, DateTimeOffset RetiredAt, WeakReference Context);
+
+/// <summary>
+/// Keeps weak references to replaced module contexts so the host can show how many old versions are still alive.
+/// Load contexts are not collectible (WinUI types cannot be unloaded reliably), so a restart releases them for good.
+/// </summary>
+public sealed class UnloadMonitor
+{
+    private readonly List<RetiredModule> _retired = [];
+
+    public void Track(LoadedModule module)
+    {
+        lock (_retired)
+        {
+            _retired.Add(new RetiredModule(module.Manifest.ModuleId, module.Manifest.Version, DateTimeOffset.Now, new WeakReference(module.Context)));
+        }
+    }
+
+    /// <summary>Old versions whose module context is still referenced.</summary>
+    public IReadOnlyList<RetiredModule> Alive()
+    {
+        lock (_retired)
+        {
+            _retired.RemoveAll(r => !r.Context.IsAlive);
+            return _retired.ToList();
+        }
+    }
+
+    /// <summary>True when replaced versions are piling up and a restart is recommended.</summary>
+    public bool RestartRecommended => Alive().Count >= 5;
+}

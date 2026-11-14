@@ -1,10 +1,10 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Monads
-// File    : Unit.cs
-// Layer   : Shared / Monads
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   The "no value" type, so operations without a result still return Result<Unit> and fit into
-//   pipelines (instead of void / Task).
+namespace GoldenHive.NET.WinUI.Framework.Monads;
+
+/// <summary>The "no value" type, so operations without a result still return <c>Result&lt;Unit&gt;</c>.</summary>
+public readonly record struct Unit
+{
+    /// <summary>The only value of <see cref="Unit"/>.</summary>
+    public static readonly Unit Value = default;
+
+    public override string ToString() => "()";
+}

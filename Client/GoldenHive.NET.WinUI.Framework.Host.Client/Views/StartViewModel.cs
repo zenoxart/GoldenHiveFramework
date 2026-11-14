@@ -20,6 +20,7 @@ public sealed class StartViewModel : ViewModelAppObject
     {
         Fill();
         AppContext.Languages.LanguageChanged += (_, _) => Fill();
+        Client.Modules.Changed += (_, _) => AppContext.Dispatcher?.Run(Fill);
     }
 
     private void Fill()
@@ -28,7 +29,11 @@ public sealed class StartViewModel : ViewModelAppObject
         foreach (var home in Client.Navigation.Registry.ModuleHomes.Where(h => h.Key != BuiltInViews.Start))
         {
             var baseKey = home.TextKey ?? home.Key;
-            AppContext.Languages.TryGetText(baseKey + ".description", out var description);
+            if (!AppContext.Languages.TryGetText(baseKey + ".description", out var description))
+            {
+                AppContext.Languages.TryGetText(baseKey + ".tooltip", out description);
+            }
+
             Modules.Add(new ModuleCard(home.Key, AppContext.Languages.GetText(baseKey + ".label"), description, Client.Icons.ResolveGlyph(home.Icon)));
         }
     }

@@ -1,0 +1,53 @@
+<Project>
+  <!--
+    Shared build settings of the module client projects (imported by Modules/*/Client/*.csproj).
+    - Framework assemblies are referenced with Private=false: the host provides them at runtime and the module's
+      AssemblyLoadContext resolves them from the host (one copy, shared types).
+    - The wire contracts in ..\Contracts are compiled into the client (the backend compiles the same files).
+    - After the build the module dll (+ pdb) and manifest.json are staged to artifacts\modules\<moduleId>\, where the
+      host build picks them up (copied to Modules\ next to the host exe = development modules) and pack-modules.ps1 zips them.
+  -->
+  <PropertyGroup>
+    <GoldenHiveRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</GoldenHiveRoot>
+    <ModuleManifestPath>$(MSBuildProjectDirectory)\..\manifest.json</ModuleManifestPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildProjectDirectory)\..\Contracts\**\*.cs" LinkBase="Contracts" />
+    <None Include="$(ModuleManifestPath)" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.Monads\GoldenHive.NET.WinUI.Framework.Monads.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.ModuleContracts\GoldenHive.NET.WinUI.Framework.ModuleContracts.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.CommandContracts\GoldenHive.NET.WinUI.Framework.CommandContracts.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.NotificationContracts\GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Shared\GoldenHive.NET.WinUI.Framework.WorkflowContracts\GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.Mvvm\GoldenHive.NET.WinUI.Framework.Mvvm.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.Commands\GoldenHive.NET.WinUI.Framework.Commands.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.Navigation\GoldenHive.NET.WinUI.Framework.Navigation.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.Docking\GoldenHive.NET.WinUI.Framework.Docking.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.Security\GoldenHive.NET.WinUI.Framework.Security.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.NotificationClient\GoldenHive.NET.WinUI.Framework.NotificationClient.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.XamlMetadata\GoldenHive.NET.WinUI.Framework.XamlMetadata.csproj" Private="false" />
+    <ProjectReference Include="$(GoldenHiveRoot)Client\GoldenHive.NET.WinUI.Framework.ModuleLoader\GoldenHive.NET.WinUI.Framework.ModuleLoader.csproj" Private="false" />
+  </ItemGroup>
+
+  <Target Name="StageGoldenHiveModule" AfterTargets="Build">
+    <PropertyGroup>
+      <_ManifestText>$([System.IO.File]::ReadAllText('$(ModuleManifestPath)'))</_ManifestText>
+      <_ModuleId>$([System.Text.RegularExpressions.Regex]::Match($(_ManifestText), '"moduleId"\s*:\s*"([^"]+)"').Groups[1].Value)</_ModuleId>
+      <_ModuleStage>$(GoldenHiveRoot)artifacts\modules\$(_ModuleId)\</_ModuleStage>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ModuleFiles Include="$(TargetPath);$(ModuleManifestPath)" />
+      <_ModuleFiles Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ModuleFiles)" DestinationFolder="$(_ModuleStage)" SkipUnchangedFiles="true" />
+    <Error Condition="'$(_ModuleId)' == ''" Text="moduleId not found in $(ModuleManifestPath)." />
+    <Message Importance="high" Text="Golden Hive module $(_ModuleId) staged to $(_ModuleStage) (@(_ModuleFiles->Count()) files)" />
+  </Target>
+</Project>

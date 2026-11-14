@@ -1,27 +1,200 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.WorkflowService
-// File    : ImpactAnalyzer.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Determines which workflows are affected by a module update.
-//
-// SEQUENCE
-//   1. Triggered by the Module Registry when a new module version is published (or reaches
-//      a rollout stage), with the contract surface diff of old vs. new version.
-//   2. Look up all workflow definitions with a dependency on that module (dependency index).
-//   3. Classify every affected workflow:
-//        Compatible      - only additions / compatible changes,
-//        AutoMigrated    - a registered migration (WorkflowMigration) applies cleanly,
-//        ReviewRequired  - semantic changes (e.g. new required field with a default),
-//        Broken          - removed command/step type, incompatible schema change.
-//   4. Apply automatic migrations as new draft or published versions (per tenant setting).
-//   5. Mark Broken/ReviewRequired definitions as NeedsReview and suspend their AI triggers.
-//   6. Decide for running instances: continue on old version, migrate at the next step
-//      boundary, or pause.
-//   7. Store the WorkflowImpactReport and publish workflow.impact.detected via the event bus,
-//      so clients show the overview and owners get notified.
-//   8. Report the totals to the Update Orchestrator (it may hold a rollout stage when
-//      critical workflows would break).
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Data;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Events;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Http;
+using GoldenHive.NET.WinUI.Framework.Contracts;
+using GoldenHive.NET.WinUI.Framework.Contracts.Api;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts.Api;
+using GoldenHive.NET.WinUI.Framework.Monads;
+using GoldenHive.NET.WinUI.Framework.NotificationContracts;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+
+namespace GoldenHive.NET.WinUI.Framework.Backend.WorkflowService;
+
+/// <summary>
+/// Determines which workflows are affected by a module update: diff of the contract surfaces -> dependency index ->
+/// classification (Compatible / AutoMigrated / ReviewRequired / Broken) -> automatic migrations as new versions ->
+/// NeedsReview + suspended AI triggers -> running instances paused when broken -> report + event.
+/// </summary>
+public sealed class ImpactAnalyzer(
+    WorkflowRepository repository,
+    WorkflowEngine engine,
+    ModuleDirectory modules,
+    Db db,
+    OutboxWriter outbox,
+    ServiceClient services,
+    TimeProvider time,
+    ILogger<ImpactAnalyzer> logger)
+{
+    public async Task<Result<ImpactAnalysisResponse>> AnalyzeAsync(ImpactAnalysisRequest request, CancellationToken ct)
+    {
+        var diff = ModuleContractSurface.Diff(request.Old, request.New);
+        var ids = diff.Select(c => c.Id).Append(request.ModuleId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var affected = await repository.DependingOnAsync(ids, ct);
+        if (!affected.TryGetValue(out var workflows, out var error))
+        {
+            return error;
+        }
+
+        var autoMigrate = await AutoMigrateAsync(ct);
+        var impacts = new List<WorkflowImpact>();
+        var events = new List<NotificationEnvelope>();
+        var toSave = new List<(WorkflowDefinition Definition, bool Insert)>();
+        var toPause = new List<Guid>();
+
+        foreach (var workflow in workflows)
+        {
+            var analysis = WorkflowMigration.Analyze(workflow, diff, request.New);
+            var running = (await repository.RunningOfAsync(workflow.Id, ct)).GetValueOrDefault([]);
+            var impact = new WorkflowImpact
+            {
+                WorkflowId = workflow.Id,
+                Name = workflow.Name,
+                Version = workflow.Version,
+                Severity = analysis.Severity,
+                Reasons = analysis.Reasons,
+                RunningInstances = running.Count,
+            };
+
+            if (analysis.Migrated is { } migrated && autoMigrate)
+            {
+                var next = migrated with
+                {
+                    Version = workflow.Version + 1,
+                    Status = analysis.Severity >= ImpactSeverity.ReviewRequired ? WorkflowStatus.NeedsReview : workflow.Status,
+                    UpdatedAt = time.GetUtcNow(),
+                };
+                next = next with
+                {
+                    Dependencies = WorkflowAnalysis.ComputeDependencies(next, await modules.ModuleOfAsync(ct),
+                        id => id.Equals(request.ModuleId, StringComparison.OrdinalIgnoreCase) ? request.ToVersion : null),
+                };
+                impact = impact with { MigratedToVersion = next.Version, SuggestedAction = "none" };
+                toSave.Add((Suspend(next, analysis.Severity), true));
+            }
+            else if (analysis.Severity >= ImpactSeverity.ReviewRequired)
+            {
+                toSave.Add((Suspend(workflow with { Status = WorkflowStatus.NeedsReview }, analysis.Severity), false));
+            }
+
+            if (analysis.Severity >= ImpactSeverity.ReviewRequired)
+            {
+                var suspended = workflow.Triggers.Any(t => t.Executor == WorkflowExecutor.Ai && t.Enabled);
+                impact = impact with
+                {
+                    AiTriggersSuspended = suspended,
+                    SuggestedAction = analysis.Severity == ImpactSeverity.Broken ? "open in designer or pin to the old module version" : "review in designer",
+                    InstanceAction = analysis.Severity == ImpactSeverity.Broken && running.Count > 0 ? "paused" : "continued",
+                };
+                if (analysis.Severity == ImpactSeverity.Broken)
+                {
+                    toPause.AddRange(running.Select(r => r.Id));
+                }
+
+                if (suspended)
+                {
+                    events.Add(outbox.Create(EventTypes.WorkflowTriggerSuspended, new JsonObject
+                    {
+                        ["workflowId"] = workflow.Id.ToString(),
+                        ["workflowName"] = workflow.Name,
+                        ["moduleId"] = request.ModuleId,
+                    }, NotificationAudience.WithPermission("workflows.edit")) with
+                    {
+                        Title = "workflow:notification.triggerSuspended",
+                        Message = workflow.Name,
+                        Severity = NotificationSeverity.Warning,
+                    });
+                }
+            }
+
+            impacts.Add(impact);
+        }
+
+        var report = new WorkflowImpactReport
+        {
+            ModuleId = request.ModuleId,
+            FromVersion = request.FromVersion,
+            ToVersion = request.ToVersion,
+            AnalyzedAt = time.GetUtcNow(),
+            RolloutStage = "pilot",
+            SurfaceDiff = diff,
+            Workflows = impacts,
+        };
+        events.Add(outbox.Create(EventTypes.WorkflowImpactDetected, new JsonObject
+        {
+            ["reportId"] = report.Id.ToString(),
+            ["moduleId"] = request.ModuleId,
+            ["toVersion"] = request.ToVersion,
+            ["broken"] = report.BrokenCount,
+            ["review"] = report.ReviewCount,
+        }, NotificationAudience.WithPermission("workflows.edit")) with
+        {
+            Title = "workflow:notification.impactDetected",
+            Message = $"{request.ModuleId} {request.ToVersion}: {impacts.Count} workflow(s), {report.BrokenCount} broken",
+            Severity = report.BrokenCount > 0 ? NotificationSeverity.Warning : NotificationSeverity.Info,
+            NavigationTarget = "workflow.impact",
+            NavigationParameter = report.Id.ToString(),
+        });
+
+        var saved = await db.InTransactionAsync(async session =>
+        {
+            foreach (var (definition, insert) in toSave)
+            {
+                var result = insert
+                    ? await repository.InsertDefinitionAsync(session, definition, TenantId.Demo.Value, ct)
+                    : await repository.UpdateDefinitionAsync(session, definition, ct);
+                if (result.IsFailure)
+                {
+                    return result;
+                }
+            }
+
+            var stored = await repository.SaveReportAsync(session, report, ct);
+            foreach (var envelope in events)
+            {
+                if (stored.IsSuccess)
+                {
+                    stored = await outbox.AddAsync(session, envelope, ct);
+                }
+            }
+
+            return stored;
+        }, ct: ct);
+        if (saved.IsFailure)
+        {
+            return saved.Error;
+        }
+
+        foreach (var instanceId in toPause.Distinct())
+        {
+            await engine.PauseAsync(instanceId, $"Paused by the update of {request.ModuleId} to {request.ToVersion} (workflow broken).", ct);
+        }
+
+        modules.Invalidate();
+        logger.LogInformation("Impact of {Module} {From}->{To}: {Count} workflows, {Broken} broken, {Review} review",
+            request.ModuleId, request.FromVersion, request.ToVersion, impacts.Count, report.BrokenCount, report.ReviewCount);
+        return new ImpactAnalysisResponse(report.Id, impacts.Count, report.BrokenCount, report.ReviewCount, impacts.Count(i => i.MigratedToVersion is not null))
+        {
+            SurfaceDiff = diff,
+        };
+    }
+
+    private static WorkflowDefinition Suspend(WorkflowDefinition definition, ImpactSeverity severity) =>
+        severity < ImpactSeverity.ReviewRequired
+            ? definition
+            : definition with
+            {
+                Triggers = definition.Triggers.Select(t => t.Executor == WorkflowExecutor.Ai && t.Enabled
+                    ? t with { Suspended = true, SuspendedReason = "Suspended by the impact analysis of a module update - review the workflow." }
+                    : t).ToList(),
+            };
+
+    private async Task<bool> AutoMigrateAsync(CancellationToken ct)
+    {
+        var setting = await services.GetAsync<ConfigSetting>("configuration-service",
+            $"/internal/settings/{SettingKeys.AutoMigrateWorkflows}?tenant={TenantId.Demo}", null, ct);
+        return setting.Match(s => s.Value.ValueKind != JsonValueKind.False, _ => true);
+    }
+}

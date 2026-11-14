@@ -1,15 +1,38 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.AiAgentService
-// File    : AiToolCatalog.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Turns workflow building blocks into tools the AI model can call.
-//
-// BEHAVIOUR
-//   - Only what the policy allows: the steps' commands and module step types marked
-//     AiAllowed and headless-capable, plus read-only lookups the step needs (e.g. find customer).
-//   - Tool schemas generated from InputSchemas and command parameter schemas.
-//   - Never exposes Approval steps, UI-only steps or administrative commands.
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Http;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+
+namespace GoldenHive.NET.WinUI.Framework.Backend.AiAgentService;
+
+/// <summary>
+/// Turns workflow building blocks into tools the model can call: only the step's allowed tools that are headless module
+/// step types (never approval steps, UI-only steps or administrative commands).
+/// </summary>
+public sealed class AiToolCatalog(ServiceClient services)
+{
+    private IReadOnlyList<ModuleManifest> _modules = [];
+    private DateTimeOffset _loaded = DateTimeOffset.MinValue;
+
+    public async Task<IReadOnlyList<AiTool>> ToolsForAsync(WorkflowStep step, CancellationToken ct)
+    {
+        if (step.Tools.Count == 0)
+        {
+            return [];
+        }
+
+        if (DateTimeOffset.UtcNow - _loaded > TimeSpan.FromMinutes(1))
+        {
+            var loaded = await services.GetAsync<IReadOnlyList<ModuleManifest>>("module-registry", "/internal/modules", null, ct);
+            if (loaded.TryGetValue(out var modules))
+            {
+                _modules = modules;
+                _loaded = DateTimeOffset.UtcNow;
+            }
+        }
+
+        return _modules.SelectMany(m => m.ContractSurface.StepTypes)
+            .Where(s => s.Headless && step.Tools.Contains(s.Id, StringComparer.OrdinalIgnoreCase))
+            .Select(s => new AiTool(s.Id, s.Title, s.Input ?? new InputSchema(s.Id)))
+            .ToList();
+    }
+}

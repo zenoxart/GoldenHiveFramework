@@ -27,6 +27,9 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock
                 VerticalAlignment="Center"
@@ -40,14 +43,32 @@
                 Style="{StaticResource CaptionTextBlockStyle}"
                 Text="{x:Bind ViewModel.ActiveTitle, Mode=OneWay}"
                 TextTrimming="CharacterEllipsis" />
-            <TextBlock
+            <HyperlinkButton
                 Grid.Column="2"
+                Padding="4,0"
+                VerticalAlignment="Center"
+                Click="OnNotificationsClick"
+                Content="{x:Bind ViewModel.NotificationText, Mode=OneWay}"
+                FontSize="12" />
+            <TextBlock
+                Grid.Column="3"
+                VerticalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.UserText, Mode=OneWay}" />
+            <TextBlock
+                Grid.Column="4"
+                VerticalAlignment="Center"
+                Opacity="0.7"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.ConnectionText, Mode=OneWay}" />
+            <TextBlock
+                Grid.Column="5"
                 VerticalAlignment="Center"
                 Opacity="0.7"
                 Style="{StaticResource CaptionTextBlockStyle}"
                 Text="{x:Bind ViewModel.SizeClassText, Mode=OneWay}" />
             <TextBlock
-                Grid.Column="3"
+                Grid.Column="6"
                 VerticalAlignment="Center"
                 Opacity="0.7"
                 Style="{StaticResource CaptionTextBlockStyle}"

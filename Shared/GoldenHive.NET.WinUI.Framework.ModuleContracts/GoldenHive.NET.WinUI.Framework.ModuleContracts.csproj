@@ -10,6 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.WorkflowContracts\GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.CommandContracts\GoldenHive.NET.WinUI.Framework.CommandContracts.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.NotificationContracts\GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj" />
   </ItemGroup>
 
 </Project>

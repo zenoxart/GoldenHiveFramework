@@ -86,3 +86,8 @@ $RECYCLE.BIN/
 
 # --- Local leftovers ----------------------------------------------------------
 _to_delete/
+
+# Golden Hive deployment secrets and generated packages
+Deployment/Docker/.env
+Deployment/ModulePackages/out/
+**/.signing/

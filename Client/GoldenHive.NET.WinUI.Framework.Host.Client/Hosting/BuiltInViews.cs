@@ -1,21 +1,21 @@
 using GoldenHive.NET.WinUI.Framework.Host.Client.Views;
 using GoldenHive.NET.WinUI.Framework.ModuleContracts;
 using GoldenHive.NET.WinUI.Framework.Navigation;
+using GoldenHive.NET.WinUI.Framework.Workflows;
 
 namespace GoldenHive.NET.WinUI.Framework.Host.Client.Hosting;
 
-/// <summary>Registers the built-in views of the shell and two demo modules.</summary>
+/// <summary>Registers the built-in views of the shell and the workflow views (modules register their own views when loaded).</summary>
 internal static class BuiltInViews
 {
     public const string Start = "shell.start";
     public const string Settings = "shell.settings";
     public const string ModuleExplorer = "shell.moduleexplorer";
     public const string Output = "shell.output";
-    public const string DemoDocuments = "demo.documents";
-    public const string DemoReports = "demo.reports";
+    public const string Notifications = "shell.notifications";
 
     /// <summary>Views opened when no saved layout exists.</summary>
-    public static readonly IReadOnlyList<string> DefaultLayout = [Start, ModuleExplorer, Output];
+    public static readonly IReadOnlyList<string> DefaultLayout = new string[] { Start, ModuleExplorer, Output, WorkflowViews.Inbox, WorkflowViews.Ai };
 
     public static void Register(ClientAppContext context)
     {
@@ -70,25 +70,18 @@ internal static class BuiltInViews
             CreateView = vm => new OutputView((OutputViewModel)vm),
         });
 
-        RegisterDemo(registry, DemoDocuments, "document", 1);
-        RegisterDemo(registry, DemoReports, "list", 2);
-    }
-
-    private static void RegisterDemo(NavigationRegistry registry, string key, string icon, int order) =>
-        registry.Register(new NavigationTarget(key, key)
+        registry.Register(new NavigationTarget(Notifications, "shell")
         {
-            TextKey = "shell:" + key,
-            Icon = icon,
-            Group = "demo",
-            Order = order,
-            IsModuleHome = true,
-            View = new ViewDescriptor { Role = ViewRole.Document },
-            CreateViewModel = c =>
-            {
-                var viewModel = c.Produce<DemoModuleViewModel>();
-                viewModel.Initialize(key);
-                return viewModel;
-            },
-            CreateView = vm => new DemoModuleView((DemoModuleViewModel)vm),
+            TextKey = "shell:view.notifications",
+            Icon = "notifications",
+            Group = "general",
+            Order = 3,
+            ShowInViewMenu = true,
+            View = new ViewDescriptor { Role = ViewRole.ToolWindow, DefaultDock = DockSide.Right, MinWidth = 280 },
+            CreateViewModel = c => c.Produce<NotificationsViewModel>(),
+            CreateView = vm => new NotificationsView((NotificationsViewModel)vm),
         });
+
+        WorkflowViews.Register(registry);
+    }
 }

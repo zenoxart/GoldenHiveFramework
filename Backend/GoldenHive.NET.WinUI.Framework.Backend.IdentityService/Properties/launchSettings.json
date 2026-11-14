@@ -1,12 +1,13 @@
 {
   "profiles": {
-    "GoldenHive.NET.WinUI.Framework.Backend.IdentityService": {
+    "IdentityService": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__Database": "Host=localhost;Port=5433;Database=goldenhive;Username=goldenhive;Password=goldenhive"
       },
-      "applicationUrl": "https://localhost:65404;http://localhost:65406"
+      "applicationUrl": "http://localhost:5101"
     }
   }
 }

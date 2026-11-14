@@ -1,21 +1,45 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Workflows
-// File    : WorkflowImpactViewModel.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Overview of every workflow affected by module updates. A ViewModelAppObject.
-//
-// CONTENTS
-//   - List of module updates (module, from -> to version, date, rollout stage) with counts
-//     per severity: Broken, ReviewRequired, AutoMigrated, Compatible.
-//   - Per update: affected workflows with severity, affected steps, the reason
-//     ("input field 'amount' changed from text to number"), affected running instances
-//     and suspended AI triggers.
-//   - Actions per workflow: open in designer, apply suggested migration, re-enable
-//     AI triggers after review, disable, pin to the previous module version (if the
-//     Update Orchestrator still offers it).
-//   - Filters: my workflows, tenant workflows, module, severity, AI-triggered only.
-//   - Fed by the WorkflowService; refreshed by workflow.impact.* events.
+using GoldenHive.NET.WinUI.Framework.ModuleLoader.Sdk;
+using GoldenHive.NET.WinUI.Framework.WorkflowContracts;
+
+namespace GoldenHive.NET.WinUI.Framework.Workflows;
+
+/// <summary>Impact overview: one report per module update with the contract diff and the classification of every workflow.</summary>
+public sealed class WorkflowImpactViewModel : ResultViewModel
+{
+    private IReadOnlyList<WorkflowImpactReport> _reports = [];
+    private WorkflowImpactReport? _selected;
+
+    public IReadOnlyList<WorkflowImpactReport> Reports
+    {
+        get => _reports;
+        private set => SetProperty(ref _reports, value);
+    }
+
+    public WorkflowImpactReport? Selected
+    {
+        get => _selected;
+        set => SetProperty(ref _selected, value);
+    }
+
+    private WorkflowManager Workflows => Context<IWorkflowContext>().Workflows;
+
+    protected override void OnCreated()
+    {
+        Title = T("workflow:view.impact.label");
+        Context<GoldenHive.NET.WinUI.Framework.NotificationClient.INotificationContext>().Router
+            .Subscribe(GoldenHive.NET.WinUI.Framework.NotificationContracts.EventTypes.WorkflowImpactDetected, e => _ = LoadAsync());
+    }
+
+    public override void OnNavigatedTo(object? parameter) =>
+        _ = LoadAsync(parameter is string id && Guid.TryParse(id, out var reportId) ? reportId : null);
+
+    public Task<bool> LoadAsync(Guid? select = null) =>
+        RunAsync(ct => Workflows.ImpactReportsAsync(ct), list =>
+        {
+            Reports = list;
+            Selected = list.FirstOrDefault(r => r.Id == (select ?? Selected?.Id)) ?? list.FirstOrDefault();
+        });
+
+    public void OpenWorkflow(Guid workflowId) =>
+        Context<GoldenHive.NET.WinUI.Framework.Navigation.INavigationContext>().Navigation.NavigateTo(WorkflowViews.Workflows, workflowId.ToString());
+}

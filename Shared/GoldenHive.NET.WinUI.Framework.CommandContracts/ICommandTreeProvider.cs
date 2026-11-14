@@ -1,20 +1,21 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.CommandContracts
-// File    : ICommandTreeProvider.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Supplies dynamic children for a group at the moment it opens.
-//
-// EXAMPLES
-//   Recent documents, open windows, available report templates, plugins of a module.
-//
-// METHODS (described)
-//   - GetChildrenAsync(context, CancellationToken): returns descriptors for the
-//     current children; each child carries a command ID plus its parameter.
-//
-// RULES
-//   - Must be fast; long work is cancelled when the menu closes.
-//   - Removed automatically when the owning module unloads.
+namespace GoldenHive.NET.WinUI.Framework.CommandContracts;
+
+/// <summary>A dynamic child of a group: a command plus its parameter.</summary>
+public sealed record DynamicCommandItem(string CommandId, string Label, object? Parameter = null)
+{
+    public string? Icon { get; init; }
+}
+
+/// <summary>
+/// Supplies dynamic children for a group at the moment it opens (recent documents, open windows, report templates).
+/// Must be fast; long work is cancelled when the menu closes. Removed automatically when the owning module unloads.
+/// </summary>
+public interface ICommandTreeProvider
+{
+    /// <summary>Placement and group path this provider fills.</summary>
+    string Placement { get; }
+
+    string Path { get; }
+
+    Task<IReadOnlyList<DynamicCommandItem>> GetChildrenAsync(CancellationToken cancellationToken);
+}

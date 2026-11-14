@@ -7,11 +7,39 @@ internal static class HostTexts
 {
     public static void Register(LanguageManager languages)
     {
-        languages.SetSupported([new LanguageInfo("en", "English"), new LanguageInfo("de", "Deutsch")]);
+        languages.SetSupported(new LanguageInfo[] { new LanguageInfo("en", "English"), new LanguageInfo("de", "Deutsch") });
         languages.DefaultLanguage = "en";
         languages.Register("shell", "en", English);
         languages.Register("shell", "de", German);
+        languages.Register("updates", "en", UpdatesEnglish);
+        languages.Register("updates", "de", UpdatesGerman);
     }
+
+    private static readonly Dictionary<string, string> UpdatesEnglish = new()
+    {
+        ["available.title"] = "Module updates available",
+        ["available.message"] = "New module versions were assigned to you. Use 'Apply module updates' in the File menu.",
+        ["restart.title"] = "Restart required for a module update",
+        ["swapped.title"] = "Module updated",
+        ["failed.title"] = "Module update failed",
+        ["rollout.notFound"] = "The rollout was not found.",
+        ["rollout.notActive"] = "The rollout is not active.",
+        ["rollout.finished"] = "The rollout is already finished.",
+        ["rollout.heldBrokenWorkflows"] = "The rollout is held because workflows would break. Fix them or advance with force.",
+    };
+
+    private static readonly Dictionary<string, string> UpdatesGerman = new()
+    {
+        ["available.title"] = "Modul-Updates verfügbar",
+        ["available.message"] = "Ihnen wurden neue Modulversionen zugewiesen. Verwenden Sie 'Modul-Updates anwenden' im Menü Datei.",
+        ["restart.title"] = "Neustart für ein Modul-Update erforderlich",
+        ["swapped.title"] = "Modul aktualisiert",
+        ["failed.title"] = "Modul-Update fehlgeschlagen",
+        ["rollout.notFound"] = "Der Rollout wurde nicht gefunden.",
+        ["rollout.notActive"] = "Der Rollout ist nicht aktiv.",
+        ["rollout.finished"] = "Der Rollout ist bereits abgeschlossen.",
+        ["rollout.heldBrokenWorkflows"] = "Der Rollout ist angehalten, weil Workflows brechen würden. Beheben oder mit Zwang fortsetzen.",
+    };
 
     private static readonly Dictionary<string, string> English = new()
     {
@@ -87,7 +115,7 @@ internal static class HostTexts
         ["palette.placeholder"] = "Search commands (Ctrl+Shift+P)",
 
         ["start.welcome"] = "Welcome to Golden Hive",
-        ["start.subtitle"] = "Modular WinUI 3 framework - stage 1: the shell",
+        ["start.subtitle"] = "Modular, server-driven WinUI 3 framework",
         ["start.quickactions"] = "Quick actions",
         ["start.modules"] = "Modules",
         ["start.tips"] = "Tips",
@@ -118,6 +146,81 @@ internal static class HostTexts
 
         ["demo.view.text"] = "This view is a built-in example. Try floating it (Ctrl+Shift+D), resizing the window or switching with Ctrl+Tab.",
         ["demo.view.items"] = "Sample entries",
+
+        ["dialog.save"] = "Save",
+        ["dialog.cancel"] = "Cancel",
+        ["common.save"] = "Save",
+        ["notification.moduleUpdate"] = "New module version assigned",
+        ["notification.rolloutStage"] = "Module rollout advanced",
+        ["notification.modulePublished"] = "Module version published",
+        ["notification.permissionsChanged"] = "Your permissions have changed",
+        ["group.workflow.label"] = "Workflows",
+        ["view.notifications.label"] = "Notifications",
+        ["view.notifications.tooltip"] = "Messages from the server, workflows and module updates",
+        ["command.signin.label"] = "Sign in...",
+        ["command.signin.tooltip"] = "Sign in to the Golden Hive server",
+        ["command.signout.label"] = "Sign out",
+        ["command.signout.tooltip"] = "Sign out and close the module views",
+        ["command.reloadmodules.label"] = "Reload modules",
+        ["command.reloadmodules.tooltip"] = "Fetch the module catalogue again and load new versions",
+        ["command.applyupdates.label"] = "Apply module updates",
+        ["command.applyupdates.tooltip"] = "Swap the modules that have a new version assigned",
+        ["command.notifications.label"] = "Notifications",
+        ["command.notifications.tooltip"] = "Open the notification centre",
+
+        ["profile.title"] = "Profile",
+        ["profile.signin"] = "Sign in",
+        ["profile.roles"] = "Roles",
+        ["profile.limit"] = "Approval limit",
+        ["profile.lastLogin"] = "Last sign-in",
+        ["profile.server"] = "Server",
+        ["profile.connection"] = "Connection",
+        ["profile.permissions"] = "Permissions",
+        ["profile.allPermissions"] = "all (administrator)",
+        ["profile.changePicture"] = "Change picture...",
+        ["profile.removePicture"] = "Remove picture",
+        ["profile.pictureUnreadable"] = "The image could not be read. Use a PNG, JPEG, BMP, GIF or WebP file.",
+        ["profile.changePassword"] = "Change password...",
+        ["profile.currentPassword"] = "Current password",
+        ["profile.newPassword"] = "New password",
+        ["profile.repeatPassword"] = "Repeat new password",
+        ["profile.passwordHint"] = "At least 8 characters. Other devices stay signed in until their session expires.",
+        ["profile.passwordMismatch"] = "The new passwords do not match.",
+        ["profile.passwordChanged"] = "Your password was changed.",
+        ["login.title"] = "Sign in to Golden Hive",
+        ["login.server"] = "Server",
+        ["login.user"] = "User name",
+        ["login.password"] = "Password",
+        ["login.remember"] = "Stay signed in",
+        ["login.signin"] = "Sign in",
+        ["login.offline"] = "Work offline",
+        ["login.hint"] = "Demo: admin / GoldenHive!2026 (start the backend with docker compose, see README).",
+        ["login.required"] = "Enter server, user name and password.",
+
+        ["connection.online"] = "Online",
+        ["connection.offline"] = "Offline",
+        ["connection.connecting"] = "Connecting...",
+        ["connection.signedout"] = "Not signed in",
+        ["connection.user"] = "{name}",
+        ["connection.live"] = "Live",
+        ["notifications.unread"] = "{count} new",
+        ["notifications.none"] = "No notifications.",
+        ["notifications.markread"] = "Mark all as read",
+        ["notifications.clear"] = "Clear",
+
+        ["startup.signingin"] = "Signing in...",
+        ["startup.modules"] = "Loading modules...",
+        ["startup.ready"] = "Ready - {count} modules loaded",
+        ["startup.offline"] = "Offline - local modules only",
+        ["startup.problems"] = "{count} modules could not be loaded - see Output.",
+
+        ["errors.network"] = "The server cannot be reached.",
+        ["errors.unauthorized"] = "Your session has expired. Please sign in again.",
+        ["errors.forbidden"] = "You are not allowed to do this.",
+        ["errors.notFound"] = "The item was not found.",
+        ["errors.conflict"] = "The item was changed by someone else. Reload and try again.",
+        ["errors.validation"] = "Please check the input.",
+        ["errors.unexpected"] = "Something went wrong: {message}",
     };
 
     private static readonly Dictionary<string, string> German = new()
@@ -194,7 +297,7 @@ internal static class HostTexts
         ["palette.placeholder"] = "Befehle suchen (Strg+Umschalt+P)",
 
         ["start.welcome"] = "Willkommen bei Golden Hive",
-        ["start.subtitle"] = "Modulares WinUI-3-Framework - Stufe 1: die Shell",
+        ["start.subtitle"] = "Modulares, servergesteuertes WinUI-3-Framework",
         ["start.quickactions"] = "Schnellzugriff",
         ["start.modules"] = "Module",
         ["start.tips"] = "Tipps",
@@ -225,5 +328,80 @@ internal static class HostTexts
 
         ["demo.view.text"] = "Diese Ansicht ist ein eingebautes Beispiel. Probier Abdocken (Strg+Umschalt+D), Fenstergröße ändern oder Wechseln mit Strg+Tab.",
         ["demo.view.items"] = "Beispieleinträge",
+
+        ["dialog.save"] = "Speichern",
+        ["dialog.cancel"] = "Abbrechen",
+        ["common.save"] = "Speichern",
+        ["notification.moduleUpdate"] = "Neue Modulversion zugewiesen",
+        ["notification.rolloutStage"] = "Modul-Rollout weitergeschaltet",
+        ["notification.modulePublished"] = "Modulversion veröffentlicht",
+        ["notification.permissionsChanged"] = "Ihre Berechtigungen haben sich geändert",
+        ["group.workflow.label"] = "Workflows",
+        ["view.notifications.label"] = "Benachrichtigungen",
+        ["view.notifications.tooltip"] = "Meldungen von Server, Workflows und Modul-Updates",
+        ["command.signin.label"] = "Anmelden...",
+        ["command.signin.tooltip"] = "Am Golden-Hive-Server anmelden",
+        ["command.signout.label"] = "Abmelden",
+        ["command.signout.tooltip"] = "Abmelden und die Modulansichten schließen",
+        ["command.reloadmodules.label"] = "Module neu laden",
+        ["command.reloadmodules.tooltip"] = "Modulkatalog neu abrufen und neue Versionen laden",
+        ["command.applyupdates.label"] = "Modul-Updates anwenden",
+        ["command.applyupdates.tooltip"] = "Module mit neu zugewiesener Version austauschen",
+        ["command.notifications.label"] = "Benachrichtigungen",
+        ["command.notifications.tooltip"] = "Benachrichtigungszentrale öffnen",
+
+        ["profile.title"] = "Profil",
+        ["profile.signin"] = "Anmelden",
+        ["profile.roles"] = "Rollen",
+        ["profile.limit"] = "Freigabelimit",
+        ["profile.lastLogin"] = "Letzte Anmeldung",
+        ["profile.server"] = "Server",
+        ["profile.connection"] = "Verbindung",
+        ["profile.permissions"] = "Berechtigungen",
+        ["profile.allPermissions"] = "alle (Administrator)",
+        ["profile.changePicture"] = "Bild ändern...",
+        ["profile.removePicture"] = "Bild entfernen",
+        ["profile.pictureUnreadable"] = "Das Bild konnte nicht gelesen werden. Verwenden Sie eine PNG-, JPEG-, BMP-, GIF- oder WebP-Datei.",
+        ["profile.changePassword"] = "Passwort ändern...",
+        ["profile.currentPassword"] = "Aktuelles Passwort",
+        ["profile.newPassword"] = "Neues Passwort",
+        ["profile.repeatPassword"] = "Neues Passwort wiederholen",
+        ["profile.passwordHint"] = "Mindestens 8 Zeichen. Andere Geräte bleiben angemeldet, bis ihre Sitzung abläuft.",
+        ["profile.passwordMismatch"] = "Die neuen Passwörter stimmen nicht überein.",
+        ["profile.passwordChanged"] = "Ihr Passwort wurde geändert.",
+        ["login.title"] = "Bei Golden Hive anmelden",
+        ["login.server"] = "Server",
+        ["login.user"] = "Benutzername",
+        ["login.password"] = "Passwort",
+        ["login.remember"] = "Angemeldet bleiben",
+        ["login.signin"] = "Anmelden",
+        ["login.offline"] = "Offline arbeiten",
+        ["login.hint"] = "Demo: admin / GoldenHive!2026 (Backend mit docker compose starten, siehe README).",
+        ["login.required"] = "Server, Benutzername und Passwort eingeben.",
+
+        ["connection.online"] = "Online",
+        ["connection.offline"] = "Offline",
+        ["connection.connecting"] = "Verbinde...",
+        ["connection.signedout"] = "Nicht angemeldet",
+        ["connection.user"] = "{name}",
+        ["connection.live"] = "Live",
+        ["notifications.unread"] = "{count} neu",
+        ["notifications.none"] = "Keine Benachrichtigungen.",
+        ["notifications.markread"] = "Alle als gelesen markieren",
+        ["notifications.clear"] = "Leeren",
+
+        ["startup.signingin"] = "Anmeldung...",
+        ["startup.modules"] = "Module werden geladen...",
+        ["startup.ready"] = "Bereit - {count} Module geladen",
+        ["startup.offline"] = "Offline - nur lokale Module",
+        ["startup.problems"] = "{count} Module konnten nicht geladen werden - siehe Ausgabe.",
+
+        ["errors.network"] = "Der Server ist nicht erreichbar.",
+        ["errors.unauthorized"] = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+        ["errors.forbidden"] = "Sie dürfen das nicht.",
+        ["errors.notFound"] = "Der Eintrag wurde nicht gefunden.",
+        ["errors.conflict"] = "Der Eintrag wurde von jemand anderem geändert. Neu laden und erneut versuchen.",
+        ["errors.validation"] = "Bitte prüfen Sie die Eingaben.",
+        ["errors.unexpected"] = "Etwas ist schiefgegangen: {message}",
     };
 }

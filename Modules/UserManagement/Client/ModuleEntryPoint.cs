@@ -1,39 +1,41 @@
-// =============================================================================
-// Project : GoldenHive.NET.Modules.UserManagement.Client
-// File    : ModuleEntryPoint.cs
-// Layer   : Module UserManagement
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Entry point of the user-management module (IModuleEntryPoint).
-//
-// INITIALIZE
-//   - Receives its ModuleAppContext; produces its services and ViewModels only through
-//     context.Produce<T>() (API client for /api/users).
-//   - Register commands prefixed with the module ID with the central command manager,
-//     each with its placements (main menu, context menus, navigation tree).
-//   - Register group descriptors for the module's own submenus if needed.
-//   - Add navigation targets and menu items (user list, user details, role assignment).
-//   - Subscribe to events with the NotificationRouter.
-//
-// SHUTDOWN
-//   Cancel running requests, detach subscriptions and handlers, keep no static references.
-//
-// WORKFLOWS
-//   - Register the module's workflow step types (IWorkflowStepHandler) and input schemas.
-//   - Register workflow templates, e.g.: Onboard a new user: personal data -> roles -> equipment request -> manager approval -> welcome mail.
-//   - Mark commands as WorkflowCapable / AiAllowed in their descriptors.
-//
-// NAVIGATION WHEEL
-//   - The module's home target becomes its segment in the wheel automatically.
-//   - Register the most important views with a placement under shell.wheel/<moduleId>
-//     so they appear in the module's outer ring.
-//
-// SHORTCUTS
-//   - Suggest DefaultShortcuts in the command descriptors, scoped to the module or its views
-//     (never Global unless really needed); reserved shell shortcuts are rejected.
-//
-// DOCK LAYOUT
-//   - Register a ViewDescriptor per view: main views as Documents, helper panels (e.g. filters,
-//     details, previews) as ToolWindows with a default dock side.
+using GoldenHive.NET.Modules.UserManagement.Client.ViewModels;
+using GoldenHive.NET.Modules.UserManagement.Client.Views;
+using GoldenHive.NET.Modules.UserManagement.Contracts;
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.ModuleLoader.Sdk;
+
+namespace GoldenHive.NET.Modules.UserManagement.Client;
+
+/// <summary>Entry point of the user-management module.</summary>
+public sealed class UserManagementModule : ModuleEntryPoint
+{
+    public const string Users = "users.list";
+    public const string Organization = "users.organization";
+
+    protected override void OnInitialize()
+    {
+        Texts("en", UserTexts.English);
+        Texts("de", UserTexts.German);
+        Icon("home", "E716");
+        Icon("organization", "E821");
+        Icon("new", "E8FA");
+
+        View<UserListViewModel>(Users, "users:view.users", "users.home", vm => new UserListView(vm), home: true, order: 0, permission: UserPermissions.View);
+        View<OrganizationViewModel>(Organization, "users:view.organization", "users.organization", vm => new OrganizationView(vm),
+            new ViewDescriptor { Role = ViewRole.ToolWindow, DefaultDock = DockSide.Right, MinWidth = 280 }, order: 1, permission: UserPermissions.View);
+
+        MenuGroup("users:menu", order: 40);
+        NavigationGroup("users:module", order: 40);
+        Command("users.open", "users:cmd.open", "users.home", _ => Go(Users), permission: UserPermissions.View, placements: new CommandPlacement[] { InMenu(0, 0) });
+        Command("users.organization.open", "users:cmd.organization", "users.organization", _ => Go(Organization), permission: UserPermissions.View, placements: new CommandPlacement[] { InMenu(0, 1) });
+        Command("users.create", "users:cmd.create", "users.new", _ => Go(Users, UserListViewModel.CreateParameter), permission: UserPermissions.Edit,
+            placements: new CommandPlacement[] { InMenu(1, 0) }, workflowCapable: true);
+    }
+
+    private Task Go(string key, string? parameter = null)
+    {
+        Module.NavigateTo(key, parameter);
+        return Task.CompletedTask;
+    }
+}

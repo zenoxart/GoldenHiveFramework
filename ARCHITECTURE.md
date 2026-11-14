@@ -4,22 +4,21 @@ Modular, server-driven WinUI 3 framework on **.NET 10 (LTS)** and the Windows Ap
 self-written MVVM on an application context (AppContext architecture) + central command manager (RelayCommandPool) + hot-swap + NotificationPoint +
 dynamic module delivery + Docker microservices + workflows that users design in the app and AI can execute.
 
-> **Status:** stage 1 implemented – runnable client shell. The parts listed below contain real
-> code; every other source file is still a **comments-only** blueprint for its implementation.
+> **Status:** implemented end to end – client framework, three modules (client + backend), the backend platform,
+> Docker Compose and a PostgreSQL database with demo data. How to run it: [README.md](README.md).
 >
-> | Project | Implemented |
+> | Area | Implemented |
 > |---|---|
-> | Shared/CommandContracts | `KeyGesture`, `ShortcutScope`/`ShortcutBinding`, `CommandPlacement`, `CommandGroupDescriptor`, `CommandDescriptor`, `ICommandHandler`, `CommandTreeNode` |
-> | Shared/ModuleContracts | `ViewDescriptor` (`ViewRole`, `DockSide`) |
-> | Client/Mvvm | `ApplicationContext`, `AppObject`, `ViewModelAppObject`, `LogManager`, `LanguageManager`, `LocalizedText`, `JsonController`, size classes |
-> | Client/XamlMetadata | `IconCatalog` |
-> | Client/Commands | `RelayCommandPool` with `CommandDispatcher`, registry, executor, tree builder, `ShortcutManager`, `ShortcutInputRouter`, `gh:Ui` attached properties, rich tooltips |
-> | Client/Windowing | `WindowManager`, `WindowPlacementStore`, `ResponsiveLayoutManager` |
-> | Client/Docking | `DockManager`, `DockHost`, tool panes, splitters, `FloatingDockWindow`, `DockLayoutStore` |
-> | Client/Navigation | `NavigationRegistry`, `NavigationService`, activation history, navigation wheel |
-> | Client/Host.Client | `ClientAppContext`, shell commands, built-in views, shell UI (title bar, menu, palette, dock area, status bar) |
+> | Shared | Monads (`Result`, `Option`, `Validation`, `Error`, `Try`, LINQ/async), wire contracts for platform, modules (manifest, contract surface + diff, compatibility), commands, notifications, workflows (definition, steps, triggers, AI policy, safe expression language, analysis, input validation, impact report) |
+> | Client framework | Mvvm (AppContext), Commands (RelayCommandPool, shortcuts, palette), Windowing, Docking (incl. floating windows), Navigation (registry, wheel), Security (`BackendConnection`, token store, permissions, localized errors), NotificationClient (SSE hub with catch-up, router, in-app centre, toasts, WNS), ModuleLoader (catalogue, download + signature check, dependency resolution, own load context per module, module SDK), HotSwap (version notices, quiescence, swap + rollback), Workflows (inbox, step presenter, designer/recorder, impact view, AI panel) |
+> | Host | `ClientAppContext` as `IModuleHost`, sign-in dialog, startup sequence, shell commands (sign-in/out, reload modules, apply updates, notifications), status bar (connection, user, unread), notification centre |
+> | Modules | DocumentManagement (documents, versions, invoices with submit/approve/reject/pay, home dashboard), Reporting (catalogue, parameter form, chart + table, runs), UserManagement (directory, create/edit, roles, password reset, organization) |
+> | Backend | Core + gateway, identity, configuration, module registry, module delivery, update orchestrator, notification point, workflow service (engine, triggers, impact analysis + migration), AI agent service (rules + OpenAI-compatible provider, guardrails, audit) |
+> | Deployment | `Deployment/Docker` (compose, schema, demo data and events), `Deployment/ModulePackages/pack-modules.ps1` |
 >
-> Next stages: drag-and-drop docking guides, module loading, backend.
+> Implementation notes that differ from the original sketch below: the client talks to the gateway with a
+> self-issued JWT (identity service) instead of MSAL; notifications use server-sent events instead of SignalR;
+> module clients are code-only (no XAML) so they can be hot-swapped; data access uses ADO.NET with Npgsql.
 
 ## Overview
 

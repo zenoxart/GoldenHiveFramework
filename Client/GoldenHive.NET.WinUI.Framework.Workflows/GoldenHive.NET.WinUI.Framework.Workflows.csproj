@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.NotificationContracts\GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj" />
     <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.WorkflowContracts\GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Mvvm\GoldenHive.NET.WinUI.Framework.Mvvm.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.ModuleLoader\GoldenHive.NET.WinUI.Framework.ModuleLoader.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Commands\GoldenHive.NET.WinUI.Framework.Commands.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Navigation\GoldenHive.NET.WinUI.Framework.Navigation.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.NotificationClient\GoldenHive.NET.WinUI.Framework.NotificationClient.csproj" />

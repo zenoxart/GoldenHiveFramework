@@ -99,6 +99,8 @@ public sealed partial class ShellView : UserControl
         await dialog.ShowAsync();
     }
 
+    private void OnNotificationsClick(object sender, RoutedEventArgs e) => ViewModel.OpenNotifications();
+
     private void BuildMenu() =>
         CommandTreeAdapters.FillMenuBar(MainMenu, _context.Commands, _context.Commands.GetTree(MainMenuPlacement));
 }

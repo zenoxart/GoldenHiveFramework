@@ -1,23 +1,33 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.ModuleLoader
-// File    : ModuleLoadContext.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   A dedicated, collectible AssemblyLoadContext per module version.
-//
-// RULES
-//   - Shared with the default context (never load again!):
-//       Microsoft.WinUI, Microsoft.WindowsAppRuntime.*, Microsoft.Windows.SDK.NET,
-//       WinRT.Runtime, GoldenHive.NET.WinUI.Framework.Mvvm, GoldenHive.NET.WinUI.Framework.Monads
-//       and all GoldenHive.*.Contracts assemblies.
-//     Otherwise types are duplicated and casts to contracts fail.
-//   - Module-specific dependencies are resolved from the module folder
-//     (AssemblyDependencyResolver based on the module's .deps.json).
-//   - Native DLLs via LoadUnmanagedDll from the module folder.
-//
-// IMPORTANT
-//   An AssemblyLoadContext is not a security boundary. Modules run with the full
-//   rights of the host process - only load signed, trusted modules.
+using System.Reflection;
+using System.Runtime.Loader;
+
+namespace GoldenHive.NET.WinUI.Framework.ModuleLoader;
+
+/// <summary>
+/// Load context of one module. Framework assemblies (contracts, MVVM, WinUI, the module SDK) are shared with the host's
+/// default context - a module never brings its own copy; everything else is loaded from the module's folder.
+/// Not collectible: WinRT types registered by WinUI cannot be unloaded safely, so an updated module is loaded into a new
+/// context and the old one stays in memory until the app restarts (see UnloadMonitor).
+/// </summary>
+public sealed class ModuleLoadContext(string moduleId, string folder) : AssemblyLoadContext($"module:{moduleId}:{Guid.NewGuid():n}", isCollectible: false)
+{
+    public string Folder { get; } = folder;
+
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        if (Default.Assemblies.Any(a => string.Equals(a.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase)) ||
+            File.Exists(Path.Combine(System.AppContext.BaseDirectory, assemblyName.Name + ".dll")))
+        {
+            return null; // shared with the host
+        }
+
+        var local = Path.Combine(Folder, assemblyName.Name + ".dll");
+        return File.Exists(local) ? LoadFromAssemblyPath(local) : null;
+    }
+
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        var local = Path.Combine(Folder, unmanagedDllName);
+        return File.Exists(local) ? LoadUnmanagedDllFromPath(local) : IntPtr.Zero;
+    }
+}

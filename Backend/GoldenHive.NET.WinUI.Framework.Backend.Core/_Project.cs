@@ -1,14 +1,9 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.Core
-// File    : _Project.cs
-// Layer   : Backend / Core
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PROJECT
-//   Class library net10.0 with a framework reference to ASP.NET Core. Shared infrastructure of the
-//   monad architecture for every backend service and module backend.
-//
-// CONTENTS
-//   UseCase conventions, pipeline steps (validation, authorization, transaction, outbox),
-//   ResultHttpMapper, ExceptionBoundaryMiddleware, repository conventions.
+// GoldenHive.NET.WinUI.Framework.Backend.Core
+// Shared infrastructure of the monad architecture for every backend service and module backend:
+//   Hosting   - AddGoldenHiveDefaults / UseGoldenHiveDefaults: JSON, health checks, JWT, correlation ID, internal key
+//   Security  - self-written HS256 JWT (TokenService + authentication handler), GoldenHiveUser, internal endpoints
+//   Data      - Db: ADO.NET access returning Result/Option, transactions that commit only on Success
+//   Pipeline  - use-case shape and reusable steps (validate, authorize, transaction, outbox, idempotency, audit)
+//   Http      - ResultHttpMapper (Result -> HTTP / Problem Details), ExceptionBoundaryMiddleware, ServiceClient
+//   Events    - transactional outbox + dispatcher to the NotificationPoint
+// The only external package is the PostgreSQL driver (Data/PostgresDataSource.cs).

@@ -15,54 +15,54 @@ namespace GoldenHive.NET.WinUI.Framework.XamlMetadata;
 /// </summary>
 public sealed class IconCatalog : AppObject
 {
-    private const string PlaceholderGlyph = "";
+    private const string PlaceholderGlyph = "\uE946";
 
     private static readonly Dictionary<string, string> DefaultGlyphs = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["add"] = "",
-        ["apps"] = "",
-        ["attach"] = "",
-        ["back"] = "",
-        ["clear"] = "",
-        ["close"] = "",
-        ["delete"] = "",
-        ["detach"] = "",
-        ["document"] = "",
-        ["dock.bottom"] = "",
-        ["dock.left"] = "",
-        ["dock.right"] = "",
-        ["edit"] = "",
-        ["error"] = "",
-        ["folder"] = "",
-        ["forward"] = "",
-        ["fullscreen"] = "",
-        ["help"] = "",
-        ["home"] = "",
-        ["info"] = "",
-        ["keyboard"] = "",
-        ["language"] = "",
-        ["library"] = "",
-        ["list"] = "",
-        ["more"] = "",
-        ["output"] = "",
-        ["pin"] = "",
-        ["power"] = "",
-        ["refresh"] = "",
-        ["reset"] = "",
-        ["save"] = "",
-        ["search"] = "",
-        ["settings"] = "",
-        ["switch"] = "",
-        ["unpin"] = "",
-        ["view"] = "",
-        ["warning"] = "",
+        ["add"] = "\uE710",
+        ["apps"] = "\uE71D",
+        ["attach"] = "\uE73F",
+        ["back"] = "\uE72B",
+        ["clear"] = "\uE894",
+        ["close"] = "\uE711",
+        ["delete"] = "\uE74D",
+        ["detach"] = "\uE8A7",
+        ["document"] = "\uE8A5",
+        ["dock.bottom"] = "\uE90E",
+        ["dock.left"] = "\uE90C",
+        ["dock.right"] = "\uE90D",
+        ["edit"] = "\uE70F",
+        ["error"] = "\uE783",
+        ["folder"] = "\uE8B7",
+        ["forward"] = "\uE72A",
+        ["fullscreen"] = "\uE740",
+        ["help"] = "\uE897",
+        ["home"] = "\uE80F",
+        ["info"] = "\uE946",
+        ["keyboard"] = "\uE765",
+        ["language"] = "\uE774",
+        ["library"] = "\uE8F1",
+        ["list"] = "\uE8FD",
+        ["more"] = "\uE712",
+        ["output"] = "\uE943",
+        ["pin"] = "\uE718",
+        ["power"] = "\uE7E8",
+        ["refresh"] = "\uE72C",
+        ["reset"] = "\uE72C",
+        ["save"] = "\uE74E",
+        ["search"] = "\uE721",
+        ["settings"] = "\uE713",
+        ["switch"] = "\uE8AB",
+        ["unpin"] = "\uE77A",
+        ["view"] = "\uE890",
+        ["warning"] = "\uE7BA",
     };
 
     private readonly ConcurrentDictionary<string, string> _glyphs = new(DefaultGlyphs, StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Uri> _images = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _reportedMissing = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Registers or replaces a glyph icon, e.g. RegisterGlyph("documents.invoice", "").</summary>
+    /// <summary>Registers or replaces a glyph icon, e.g. RegisterGlyph("documents.invoice", "\uE8A5").</summary>
     public void RegisterGlyph(string name, string glyph) => _glyphs[name] = glyph;
 
     /// <summary>Registers an image icon (SVG or PNG), e.g. ms-appx:///Assets/Icons/invoice.svg.</summary>

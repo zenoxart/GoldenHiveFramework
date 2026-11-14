@@ -1,23 +1,30 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Contracts
-// File    : TextKey.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Refers to a localized text by key, so no visible text is hard-coded anywhere.
-//
-// FORMAT
-//   "<scope>:<key>", e.g. "shell:command.save.label", "documents:invoice.tooltip.approve".
-//   Scope = "shell" or a module ID; the key is dot-separated.
-//
-// CONVENTIONS PER COMMAND / BUTTON
-//   <key>.label        short text on the button or menu item
-//   <key>.tooltip      one-line explanation shown on hover
-//   <key>.description  longer help text (rich tooltip, command palette, accessibility HelpText)
-//   <key>.disabled.<reason>  why the action is not available right now
-//
-// PARAMETERS
-//   Optional named placeholders ("Delete {count} documents?"), formatted with the current
-//   culture (numbers, dates) by the LanguageManager.
+namespace GoldenHive.NET.WinUI.Framework.Contracts;
+
+/// <summary>
+/// Refers to a localized text by key: "&lt;scope&gt;:&lt;key&gt;", e.g. "shell:command.save.label".
+/// Scope = "shell" or a module ID; the key is dot-separated.
+/// Conventions: &lt;key&gt;.label, &lt;key&gt;.tooltip, &lt;key&gt;.description, &lt;key&gt;.disabled.&lt;reason&gt;.
+/// </summary>
+public readonly record struct TextKey(string Scope, string Key)
+{
+    public static TextKey Parse(string text)
+    {
+        var colon = text.IndexOf(':');
+        return colon <= 0 ? new TextKey("shell", text) : new TextKey(text[..colon], text[(colon + 1)..]);
+    }
+
+    public static bool IsTextKey(string? text) =>
+        text is not null && text.IndexOf(':') is > 0 and var colon && colon < text.Length - 1 && !text.Contains(' ');
+
+    public TextKey Label => this with { Key = $"{Key}.label" };
+
+    public TextKey ToolTip => this with { Key = $"{Key}.tooltip" };
+
+    public TextKey Description => this with { Key = $"{Key}.description" };
+
+    public TextKey Disabled(string reason) => this with { Key = $"{Key}.disabled.{reason}" };
+
+    public override string ToString() => $"{Scope}:{Key}";
+
+    public static implicit operator string(TextKey key) => key.ToString();
+}

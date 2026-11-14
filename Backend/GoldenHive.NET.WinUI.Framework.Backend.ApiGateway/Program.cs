@@ -1,20 +1,66 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Backend.ApiGateway
-// File    : Program.cs
-// Layer   : Backend / Docker
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Entry point of the ApiGateway service.
-//
-// STANDARD FOR EVERY SERVICE
-//   - Configuration via environment variables (container) and the Configuration Service.
-//   - Authentication via JWT from the Identity Service; authorization via policies.
-//   - Health checks: /health/live and /health/ready (for Compose/Kubernetes).
-//   - OpenTelemetry for logs, metrics and traces with a correlation ID.
-//   - Errors in the ApiError format (Problem Details).
-//
-// MONAD ARCHITECTURE
-//   - Register Backend.Core: ExceptionBoundaryMiddleware, pipeline steps, ResultHttpMapper.
-//   - Endpoints: request -> use case -> Result -> ResultHttpMapper (no try/catch in endpoints).
+using System.Threading.RateLimiting;
+using GoldenHive.NET.WinUI.Framework.Backend.ApiGateway;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Hosting;
+using GoldenHive.NET.WinUI.Framework.Backend.Core.Http;
+using GoldenHive.NET.WinUI.Framework.Monads;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddGoldenHiveDefaults("api-gateway", useDatabase: false);
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 200 * 1024 * 1024);
+builder.Services.AddHttpClient("proxy", c => c.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+        AutomaticDecompression = System.Net.DecompressionMethods.None,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    });
+builder.Services.AddSingleton<ReverseProxy>();
+builder.Services.AddSingleton<RoutingConfiguration>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RoutingConfiguration>());
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Configuration.GetValue("GoldenHive:RateLimitPerMinute", 1200),
+            Window = TimeSpan.FromMinutes(1),
+        }));
+});
+
+var app = builder.Build();
+app.UseGoldenHiveDefaults();
+app.UseRateLimiter();
+
+app.MapGet("/", () => Results.Ok(new { service = "Golden Hive API gateway", health = "/health/ready" })).AllowAnonymous();
+app.MapGet("/api/gateway/routes", (RoutingConfiguration routing) => Results.Ok(routing.Routes)).RequireAuthorization();
+
+// Everything else under /api is forwarded; /internal is never routed.
+app.Map("/internal/{**rest}", () => ResultHttpMapper.Problem(Error.NotFound("gateway.route", "errors:notFound"))).AllowAnonymous();
+app.Map("/api/{**rest}", async (HttpContext context, RoutingConfiguration routing, ReverseProxy proxy) =>
+{
+    if (routing.Routes.Count == 0)
+    {
+        await routing.RefreshAsync(context.RequestAborted);
+    }
+
+    var route = routing.Match(context.Request.Path);
+    if (route is null)
+    {
+        // A module may have been published since the last refresh.
+        await routing.RefreshAsync(context.RequestAborted);
+        route = routing.Match(context.Request.Path);
+    }
+
+    if (route is null)
+    {
+        await ResultHttpMapper.Problem(Error.NotFound("gateway.route", "errors:notFound").WithMetadata("path", context.Request.Path.Value))
+            .ExecuteAsync(context);
+        return;
+    }
+
+    await proxy.ForwardAsync(context, route.Service);
+}).AllowAnonymous();
+
+app.Run();

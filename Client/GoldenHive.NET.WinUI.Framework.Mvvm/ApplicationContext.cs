@@ -40,7 +40,7 @@ public class ApplicationContext
     }
 
     /// <summary>The application log (WIFI: Protokoll).</summary>
-    public LogManager Log
+    public virtual LogManager Log
     {
         get
         {
@@ -58,7 +58,7 @@ public class ApplicationContext
     }
 
     /// <summary>The application languages and texts (WIFI: Sprachen).</summary>
-    public LanguageManager Languages => GetOrProduce(ref _languages);
+    public virtual LanguageManager Languages => GetOrProduce(ref _languages);
 
     /// <summary>Session cache.</summary>
     public ConcurrentDictionary<string, object> Cache { get; } = new();
