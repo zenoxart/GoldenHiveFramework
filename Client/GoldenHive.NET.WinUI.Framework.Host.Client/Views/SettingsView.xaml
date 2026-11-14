@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="GoldenHive.NET.WinUI.Framework.Host.Client.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:gh="using:GoldenHive.NET.WinUI.Framework.Commands"
+    xmlns:mvvm="using:GoldenHive.NET.WinUI.Framework.Mvvm"
+    xmlns:views="using:GoldenHive.NET.WinUI.Framework.Host.Client.Views"
+    PreviewKeyDown="OnPreviewKeyDown">
+
+    <ScrollViewer>
+        <StackPanel
+            MaxWidth="960"
+            Padding="32,24,32,32"
+            Spacing="28">
+            <TextBlock gh:Ui.Text="shell:view.settings.label" Style="{StaticResource TitleTextBlockStyle}" />
+
+            <StackPanel Spacing="8">
+                <TextBlock gh:Ui.Text="shell:settings.language" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ComboBox
+                    x:Name="LanguageBox"
+                    MinWidth="220"
+                    ItemsSource="{x:Bind ViewModel.Languages}"
+                    SelectionChanged="OnLanguageChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="mvvm:LanguageInfo">
+                            <TextBlock Text="{x:Bind NativeName}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock gh:Ui.Text="shell:settings.shortcuts" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock gh:Ui.Text="shell:settings.shortcuts.hint" Opacity="0.75" TextWrapping="Wrap" />
+                <Button gh:Ui.Icon="reset" gh:Ui.Text="shell:settings.resetall" Click="OnResetAll" />
+                <ListView ItemsSource="{x:Bind ViewModel.Shortcuts}" SelectionMode="None">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="views:ShortcutRow">
+                            <Grid Padding="0,4" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="200" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="{x:Bind Label}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Cascadia Mono, Consolas"
+                                    Text="{x:Bind Gesture}" />
+                                <Button
+                                    Grid.Column="2"
+                                    gh:Ui.Text="shell:settings.change"
+                                    Click="OnChangeShortcut"
+                                    Tag="{x:Bind CommandId}" />
+                                <Button
+                                    Grid.Column="3"
+                                    gh:Ui.Text="shell:settings.reset"
+                                    Click="OnResetShortcut"
+                                    IsEnabled="{x:Bind IsChanged}"
+                                    Tag="{x:Bind CommandId}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock gh:Ui.Text="shell:settings.data" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Grid ColumnSpacing="12" RowSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock VerticalAlignment="Center" gh:Ui.Text="shell:settings.localdata" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        IsTextSelectionEnabled="True"
+                        Opacity="0.75"
+                        Text="{x:Bind ViewModel.LocalDataPath}"
+                        TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="2" gh:Ui.Icon="folder" gh:Ui.Text="shell:settings.open" Click="OnOpenLocal" />
+                    <TextBlock Grid.Row="1" VerticalAlignment="Center" gh:Ui.Text="shell:settings.roamingdata" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        IsTextSelectionEnabled="True"
+                        Opacity="0.75"
+                        Text="{x:Bind ViewModel.RoamingDataPath}"
+                        TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Row="1" Grid.Column="2" gh:Ui.Icon="folder" gh:Ui.Text="shell:settings.open" Click="OnOpenRoaming" />
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

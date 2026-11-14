@@ -1,46 +1,80 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Host.Client
-// File    : ShellViewModel.cs
-// Layer   : Client / Host
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Main ViewModel of the shell. Derives from ViewModelAppObject with the typed
-//   ClientAppContext. Equivalent of the main ViewModel "Anwendung" in WIFI.CS.Teil2.
-//
-// START
-//   Start<TWindow>() where TWindow : Window, new()
-//     - remember the window type for additional windows,
-//     - create the window, set the root element's DataContext to this ViewModel,
-//     - InitializeWindow(window): unique window name (type name + free number),
-//       restore position/size/state via Context.Windows, save it again on Closed,
-//       release the DataContext on close so the GC can collect the window,
-//     - activate the window.
-//
-// CONTENTS
-//   - Navigation tree: command tree for placement "shell.navigation" from Context.Commands,
-//     projected onto the NavigationView.
-//   - Main menu: command tree for placement "shell.mainmenu", projected onto a MenuBar.
-//   - Both refresh on the command manager's TreeChanged event.
-//   - Command palette: search over Context.Commands.Find(text).
-//   - In-app notifications (InfoBar area), log view bound to Context.Log.Entries.
-//   - User info, tenant, connection status, available updates, IsBusy.
-//
-// WORKFLOWS
-//   - Navigation entries (via command placements): Workflow inbox, Designer, Impact overview,
-//     AI approvals - with badges for waiting items and Broken workflows.
-//   - InfoBar when a module update affected the user's workflows, linking to the overview.
-//
-// NAVIGATION WHEEL
-//   - Produces one NavigationWheelViewModel per window (Context.Produce<T>()).
-//   - Badges per module come from the WorkflowManager (waiting tasks) and notifications.
-//
-// SHORTCUTS
-//   Commands "shell.shortcuts.settings" (Ctrl+K, Ctrl+S) and "shell.shortcuts.cheatsheet"
-//   open the ShortcutSettingsViewModel page and the cheat sheet overlay.
-//
-// DOCK LAYOUT
-//   - Built-in tool windows: Module Explorer, Output (bound to Context.Log), Notifications,
-//     Workflow inbox, AI approvals, Properties; built-in documents: start page, workflow designer,
-//     impact overview, shortcut settings.
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.Host.Client.Hosting;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Host.Client.Shell;
+
+/// <summary>Main ViewModel of the shell: status bar texts and the active view.</summary>
+public sealed class ShellViewModel : ViewModelAppObject
+{
+    private string _statusText = string.Empty;
+    private string _activeTitle = string.Empty;
+    private string _sizeClassText = string.Empty;
+    private string _languageText = string.Empty;
+    private string? _chordHint;
+
+    public string StatusText
+    {
+        get => _statusText;
+        private set => SetProperty(ref _statusText, value);
+    }
+
+    public string ActiveTitle
+    {
+        get => _activeTitle;
+        private set => SetProperty(ref _activeTitle, value);
+    }
+
+    public string SizeClassText
+    {
+        get => _sizeClassText;
+        private set => SetProperty(ref _sizeClassText, value);
+    }
+
+    public string LanguageText
+    {
+        get => _languageText;
+        private set => SetProperty(ref _languageText, value);
+    }
+
+    private ClientAppContext Client => Context<ClientAppContext>();
+
+    /// <summary>Shows the "waiting for the second key" hint of a chord (null hides it).</summary>
+    public void SetChordHint(string? gesture)
+    {
+        _chordHint = gesture;
+        UpdateStatus();
+    }
+
+    protected override void OnCreated()
+    {
+        UpdateTexts();
+        AppContext.Languages.LanguageChanged += (_, _) => UpdateTexts();
+        Client.Dock.ActiveItemChanged += (_, _) => OnActiveItemChanged();
+    }
+
+    protected override void OnSizeClassChanged() =>
+        SizeClassText = AppContext.Languages.GetText($"shell:sizeclass.{SizeClass.ToString().ToLowerInvariant()}");
+
+    private void UpdateTexts()
+    {
+        UpdateStatus();
+        OnSizeClassChanged();
+        LanguageText = AppContext.Languages.CurrentInfo.NativeName;
+        OnActiveItemChanged();
+    }
+
+    private void UpdateStatus() =>
+        StatusText = _chordHint is null
+            ? AppContext.Languages.GetText("shell:status.ready")
+            : AppContext.Languages.GetText("shell:status.chord", new Dictionary<string, object?> { ["gesture"] = _chordHint });
+
+    private void OnActiveItemChanged()
+    {
+        var item = Client.Dock.ActiveItem;
+        ActiveTitle = item?.Title ?? string.Empty;
+        Client.Commands.Shortcuts.ActiveScopes = item is null
+            ? []
+            : [(ShortcutScope.View, item.NavigationKey), (ShortcutScope.Module, item.ModuleId)];
+    }
+}

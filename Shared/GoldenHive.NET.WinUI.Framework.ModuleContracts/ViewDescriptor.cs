@@ -1,17 +1,41 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.ModuleContracts
-// File    : ViewDescriptor.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   How a module's view takes part in the dock layout (registered with its navigation target).
-//
-// FIELDS
-//   - Role: Document (opens in the document well) or ToolWindow (docks at a side).
-//   - DefaultDock: DocumentWell, Left, Right, Top, Bottom, Floating; DefaultAutoHide.
-//   - DefaultSize (proportion of the side) and MinimumSize (epx).
-//   - AllowMultipleInstances (documents only, e.g. one tab per document ID).
-//   - CanClose, CanFloat, CanAutoHide.
-//   - Title and icon (resource keys), dirty-state support (unsaved changes marker).
+namespace GoldenHive.NET.WinUI.Framework.ModuleContracts;
+
+/// <summary>Role of a view in the dock layout.</summary>
+public enum ViewRole
+{
+    /// <summary>Opens as a tab in the document well.</summary>
+    Document,
+
+    /// <summary>Docks at a side of the window (left, right, bottom) or floats.</summary>
+    ToolWindow,
+}
+
+/// <summary>Dock positions.</summary>
+public enum DockSide
+{
+    DocumentWell,
+    Left,
+    Right,
+    Bottom,
+    Floating,
+}
+
+/// <summary>How a view takes part in the dock layout.</summary>
+public sealed record ViewDescriptor
+{
+    public ViewRole Role { get; init; } = ViewRole.Document;
+
+    public DockSide DefaultDock { get; init; } = DockSide.DocumentWell;
+
+    /// <summary>Documents only: several instances with different parameters may be open.</summary>
+    public bool AllowMultipleInstances { get; init; }
+
+    public bool CanClose { get; init; } = true;
+
+    public bool CanFloat { get; init; } = true;
+
+    /// <summary>Minimum size of the view's floating window, in effective pixels.</summary>
+    public int MinWidth { get; init; } = 320;
+
+    public int MinHeight { get; init; } = 240;
+}

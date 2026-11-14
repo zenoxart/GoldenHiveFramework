@@ -1,16 +1,28 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : PooledCommand.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   The ICommand implementation that WinUI controls bind to.
-//
-// BEHAVIOUR
-//   - Holds only the command ID and a reference to the pool (registry + dispatcher),
-//     never a reference to module types (otherwise the old context cannot be unloaded).
-//   - CanExecute: ask the registry for the current implementation; none -> false.
-//   - Execute: delegate to CommandExecutor (asynchronously).
-//   - Raise CanExecuteChanged only through the pool's CommandDispatcher (UI thread).
+using System.Windows.Input;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>
+/// The stable ICommand that WinUI controls bind to. Holds only its ID and the pool - never a reference
+/// to a module type - so an old module version can be unloaded after a hot-swap.
+/// </summary>
+public sealed class PooledCommand : ICommand
+{
+    private readonly RelayCommandPool _pool;
+
+    internal PooledCommand(RelayCommandPool pool, string id)
+    {
+        _pool = pool;
+        Id = id;
+    }
+
+    public event EventHandler? CanExecuteChanged;
+
+    public string Id { get; }
+
+    public bool CanExecute(object? parameter) => _pool.CanExecute(Id, parameter);
+
+    public async void Execute(object? parameter) => await _pool.ExecuteAsync(Id, parameter);
+
+    internal void RaiseCanExecuteChanged() => _pool.Dispatcher.Run(() => CanExecuteChanged?.Invoke(this, EventArgs.Empty));
+}

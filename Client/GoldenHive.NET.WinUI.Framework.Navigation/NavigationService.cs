@@ -1,30 +1,93 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Navigation
-// File    : NavigationService.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Navigates within the shell's content frame.
-//
-// BEHAVIOUR
-//   - NavigateTo(navigationKey, parameter): look up the target in NavigationRegistry,
-//     check permission, create the ViewModel, create the view via ViewLocator.
-//   - Set the frame content; back/forward via its own history (key + parameter),
-//     not via types from old module versions.
-//   - During a hot-swap: remove or rewrite all history entries of a module.
-//
-// NAVIGATION WHEEL
-//   - Records each navigation in the ModuleActivationHistory.
-//   - Executes the wheel's selection like any other navigation command.
-//
-// DETACHED VIEWS
-//   - Navigation can target the main frame or a detached window; navigating to a view that is
-//     already detached brings its window to front instead of opening it twice.
-//   - The navigation history of the main window does not contain detached views.
-//
-// DOCK LAYOUT
-//   - Navigating opens the target through the DockManager: documents as tabs in the document well,
-//     tool windows at their dock position; an already open view is activated instead of reopened.
-//   - Back/forward history spans documents (Ctrl+- / Ctrl+Shift+-), like Visual Studio.
+using GoldenHive.NET.WinUI.Framework.Docking;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Navigation;
+
+/// <summary>
+/// Opens navigation targets through the dock layout: documents as tabs, tool windows at their dock side.
+/// An already open view is activated instead of opened twice. Records the module history for the wheel.
+/// </summary>
+public sealed class NavigationService : AppObject
+{
+    private NavigationRegistry? _registry;
+    private ModuleActivationHistory? _history;
+
+    public NavigationRegistry Registry => _registry ??= AppContext.Produce<NavigationRegistry>();
+
+    public ModuleActivationHistory History => _history ??= AppContext.Produce<ModuleActivationHistory>();
+
+    private DockManager Dock => Context<IDockContext>().Dock;
+
+    /// <summary>Opens (or activates) the target.</summary>
+    public DockItem? NavigateTo(string key, string? parameter = null)
+    {
+        var target = Registry.Find(key);
+        if (target is null)
+        {
+            AppContext.Log.Write($"Unknown navigation target '{key}'", LogEntryType.Warning, nameof(NavigationService));
+            return null;
+        }
+
+        var itemKey = ItemKey(target, parameter);
+        if (Dock.Find(itemKey) is { } open)
+        {
+            Dock.Activate(open);
+            return open;
+        }
+
+        var item = CreateItem(key, parameter);
+        if (item is null)
+        {
+            return null;
+        }
+
+        Dock.Open(item);
+        item.ViewModel.OnNavigatedTo(parameter);
+        return item;
+    }
+
+    /// <summary>Creates a dock item for a target (also used to restore saved layouts).</summary>
+    public DockItem? CreateItem(string key, string? parameter)
+    {
+        var target = Registry.Find(key);
+        if (target is null)
+        {
+            return null;
+        }
+
+        var viewModel = target.CreateViewModel(AppContext);
+        var titleKey = target.TextKey is null ? null : target.TextKey + ".label";
+        if (string.IsNullOrEmpty(viewModel.Title))
+        {
+            viewModel.Title = titleKey is null ? key : AppContext.Languages.GetText(titleKey);
+        }
+
+        return new DockItem
+        {
+            Key = ItemKey(target, parameter),
+            NavigationKey = key,
+            ModuleId = target.ModuleId,
+            Parameter = parameter,
+            Descriptor = target.View,
+            ViewModel = viewModel,
+            Icon = target.Icon,
+            TitleKey = titleKey,
+            CreateView = () => target.CreateView(viewModel),
+        };
+    }
+
+    protected override void OnCreated()
+    {
+        Dock.ItemResolver = CreateItem;
+        Dock.ActiveItemChanged += (_, _) =>
+        {
+            if (Dock.ActiveItem is { } item)
+            {
+                History.Record(item.ModuleId);
+            }
+        };
+    }
+
+    private static string ItemKey(NavigationTarget target, string? parameter) =>
+        target.View.AllowMultipleInstances && parameter is not null ? $"{target.Key}|{parameter}" : target.Key;
+}

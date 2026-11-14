@@ -1,19 +1,17 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.CommandContracts
-// File    : CommandGroupDescriptor.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Describes a group node (submenu / tree folder) explicitly.
-//
-// FIELDS
-//   - Path within a placement (e.g. "file/export"), label resource key, icon.
-//   - Order and section within its parent.
-//   - Required permission (hides the whole subtree).
-//   - Optional ICommandTreeProvider for dynamic children.
-//
-// NOTE
-//   Groups do not have to be registered: the CommandTreeBuilder creates missing groups
-//   implicitly. Registering one only adds a label, icon, order or permission.
+namespace GoldenHive.NET.WinUI.Framework.CommandContracts;
+
+/// <summary>
+/// Describes a group node (submenu / tree folder) explicitly. Groups do not have to be
+/// registered - missing groups are created implicitly; registering one adds label, icon and order.
+/// </summary>
+public sealed record CommandGroupDescriptor(string Placement, string Path)
+{
+    /// <summary>Base text key; the label is "&lt;TextKey&gt;.label".</summary>
+    public string? TextKey { get; init; }
+
+    public string? Icon { get; init; }
+
+    public int Section { get; init; }
+
+    public int Order { get; init; }
+}

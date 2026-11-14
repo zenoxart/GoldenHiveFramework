@@ -1,19 +1,36 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : RichToolTipBuilder.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Builds the standard tooltip for commands and buttons.
-//
-// LAYOUT
-//   Line 1: label (bold) + shortcut text from the ShortcutManager ("Speichern  Strg+S").
-//   Line 2: tooltip / description text.
-//   Line 3 (only when disabled): the localized disabled reason, in the secondary colour.
-//
-// BEHAVIOUR
-//   - Same look everywhere (buttons, menus, tabs, wheel segments, tool window headers).
-//   - Respects the Windows tooltip delay and Narrator; text is also exposed as HelpText.
-//   - Max width ~ 320 epx, wraps; uses ThemeResourceKeys for spacing and typography.
+using Microsoft.UI.Text;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>Builds the standard tooltip: label + shortcut on the first line, explanation below.</summary>
+public static class RichToolTipBuilder
+{
+    public static object Build(string? label, string? shortcut, string? description)
+    {
+        var panel = new StackPanel { Spacing = 2, MaxWidth = 320 };
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        if (!string.IsNullOrEmpty(label))
+        {
+            header.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        }
+
+        if (!string.IsNullOrEmpty(shortcut))
+        {
+            header.Children.Add(new TextBlock { Text = shortcut, Opacity = 0.7 });
+        }
+
+        if (header.Children.Count > 0)
+        {
+            panel.Children.Add(header);
+        }
+
+        if (!string.IsNullOrEmpty(description) && description != label)
+        {
+            panel.Children.Add(new TextBlock { Text = description, TextWrapping = TextWrapping.Wrap, Opacity = 0.85 });
+        }
+
+        return panel;
+    }
+}

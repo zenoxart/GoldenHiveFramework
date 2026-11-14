@@ -4,9 +4,22 @@ Modular, server-driven WinUI 3 framework on **.NET 10 (LTS)** and the Windows Ap
 self-written MVVM on an application context (AppContext architecture) + central command manager (RelayCommandPool) + hot-swap + NotificationPoint +
 dynamic module delivery + Docker microservices + workflows that users design in the app and AI can execute.
 
-> **Status:** architecture sketch. All 34 projects exist and are part of the solution, but every
-> source file contains **comments only**. Each file describes the purpose, responsibilities and
-> flow of one component and serves as the blueprint for its implementation.
+> **Status:** stage 1 implemented – runnable client shell. The parts listed below contain real
+> code; every other source file is still a **comments-only** blueprint for its implementation.
+>
+> | Project | Implemented |
+> |---|---|
+> | Shared/CommandContracts | `KeyGesture`, `ShortcutScope`/`ShortcutBinding`, `CommandPlacement`, `CommandGroupDescriptor`, `CommandDescriptor`, `ICommandHandler`, `CommandTreeNode` |
+> | Shared/ModuleContracts | `ViewDescriptor` (`ViewRole`, `DockSide`) |
+> | Client/Mvvm | `ApplicationContext`, `AppObject`, `ViewModelAppObject`, `LogManager`, `LanguageManager`, `LocalizedText`, `JsonController`, size classes |
+> | Client/XamlMetadata | `IconCatalog` |
+> | Client/Commands | `RelayCommandPool` with `CommandDispatcher`, registry, executor, tree builder, `ShortcutManager`, `ShortcutInputRouter`, `gh:Ui` attached properties, rich tooltips |
+> | Client/Windowing | `WindowManager`, `WindowPlacementStore`, `ResponsiveLayoutManager` |
+> | Client/Docking | `DockManager`, `DockHost`, tool panes, splitters, `FloatingDockWindow`, `DockLayoutStore` |
+> | Client/Navigation | `NavigationRegistry`, `NavigationService`, activation history, navigation wheel |
+> | Client/Host.Client | `ClientAppContext`, shell commands, built-in views, shell UI (title bar, menu, palette, dock area, status bar) |
+>
+> Next stages: drag-and-drop docking guides, module loading, backend.
 
 ## Overview
 
@@ -493,8 +506,7 @@ Modules with `hotSwap: restartRequired`, host updates (MSIX / App Installer) and
 
 ## Open points
 
-- [ ] **Trimming:** the host `.csproj` still sets `PublishTrimmed=True` for Release builds,
-      which conflicts with rule 8 and must be switched off.
+- [x] **Trimming:** `PublishTrimmed` is switched off in the host `.csproj` (rule 8).
 - [ ] Prototype: module view via `XamlReader.Load` + aggregated `IXamlMetadataProvider`.
 - [ ] Measure whether collectible load contexts are actually unloaded after a hot-swap.
 - [ ] Decide between packaged (MSIX) and unpackaged host.
@@ -502,4 +514,4 @@ Modules with `hotSwap: restartRequired`, host updates (MSIX / App Installer) and
 - [ ] Choose the AI provider/model profiles and the data-residency rules per tenant.
 - [ ] Define the expression language for transitions and mappings.
 - [ ] Decide the durable execution store for the WorkflowEngine.
-- [ ] Start implementing, beginning with the shared contracts and the command manager.
+- [x] Stage 1: shared contracts, command manager, MVVM core and the runnable client shell.

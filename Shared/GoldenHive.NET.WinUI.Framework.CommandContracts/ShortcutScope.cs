@@ -1,21 +1,19 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.CommandContracts
-// File    : ShortcutScope.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Where a shortcut is active. More specific scopes win over general ones.
-//
-// SCOPES (highest priority first)
-//   1. Focus     : a specific control or editor has focus (e.g. a grid, a text editor).
-//   2. View      : a module page / workflow step is active (key = navigation key or step type).
-//   3. Module    : any page of a module is active (key = module ID).
-//   4. Window    : a specific window type (e.g. document window).
-//   5. Global    : everywhere in the app.
-//   Reserved shell shortcuts sit above all scopes and cannot be overridden by modules.
-//
-// TEXT INPUT
-//   While a text input has focus, gestures without Ctrl/Alt/Win (plain letters, Shift+letter,
-//   Delete, Home, ...) are never treated as shortcuts.
+namespace GoldenHive.NET.WinUI.Framework.CommandContracts;
+
+/// <summary>Where a shortcut is active. Higher values are more specific and win.</summary>
+public enum ShortcutScope
+{
+    Global = 0,
+    Window = 1,
+    Module = 2,
+    View = 3,
+    Focus = 4,
+}
+
+/// <summary>A default shortcut suggested by a command descriptor.</summary>
+public sealed record ShortcutBinding(KeyGesture Gesture, ShortcutScope Scope = ShortcutScope.Global, string? ScopeKey = null)
+{
+    /// <summary>Creates a binding from gesture text, e.g. <c>ShortcutBinding.Parse("Ctrl+Shift+P")</c>.</summary>
+    public static ShortcutBinding Parse(string gesture, ShortcutScope scope = ShortcutScope.Global, string? scopeKey = null) =>
+        new(KeyGesture.Parse(gesture), scope, scopeKey);
+}

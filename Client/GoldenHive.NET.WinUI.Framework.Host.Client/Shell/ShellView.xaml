@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="GoldenHive.NET.WinUI.Framework.Host.Client.Shell.ShellView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <MenuBar x:Name="MainMenu" />
+
+        <Border x:Name="DockArea" Grid.Row="1" />
+
+        <Grid
+            Grid.Row="2"
+            Padding="12,3"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="0,1,0,0"
+            ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                VerticalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Grid.Column="1"
+                MaxWidth="320"
+                VerticalAlignment="Center"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.ActiveTitle, Mode=OneWay}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                Opacity="0.7"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.SizeClassText, Mode=OneWay}" />
+            <TextBlock
+                Grid.Column="3"
+                VerticalAlignment="Center"
+                Opacity="0.7"
+                Style="{StaticResource CaptionTextBlockStyle}"
+                Text="{x:Bind ViewModel.LanguageText, Mode=OneWay}" />
+        </Grid>
+
+        <Grid
+            x:Name="Overlay"
+            Grid.RowSpan="3"
+            Background="{ThemeResource SmokeFillColorDefaultBrush}"
+            Visibility="Collapsed" />
+    </Grid>
+</UserControl>

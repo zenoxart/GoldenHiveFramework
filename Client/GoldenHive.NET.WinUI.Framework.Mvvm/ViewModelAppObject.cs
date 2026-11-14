@@ -1,42 +1,133 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Mvvm
-// File    : ViewModelAppObject.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Base class of all ViewModels in the host and in modules.
-//   Equivalent of ViewModelAppObjekt in WIFI.Anwendung.Datenbank.
-//
-// BASE
-//   AppObject + INotifyPropertyChanged (self-written, no MVVM library).
-//
-// MEMBERS (described)
-//   - PropertyChanged event.
-//   - OnPropertyChanged([CallerMemberName] propertyName): copy the handler, raise the event.
-//     WinUI requires this on the UI thread: if called from a background thread, enqueue it
-//     on AppContext.Dispatcher (WPF tolerated cross-thread PropertyChanged, WinUI does not).
-//   - SetProperty(ref field, value, [CallerMemberName]) helper: compare, assign, notify;
-//     returns whether the value changed.
-//   - Typed context: shadow AppContext with the derived context type the ViewModel needs
-//     (e.g. ClientAppContext), so callers do not have to cast (same trick as WIFI).
-//   - IsBusy: counter-based busy flag (several overlapping operations keep it true until
-//     the last one ends).
-//   - BeginWork([CallerMemberName] methodName) / EndWork(...): increment/decrement IsBusy and
-//     write "<ViewModel>.<method> starts/ends" to the log (WIFI: StartProtokollieren /
-//     EndeProtokollieren). Always paired via try/finally.
-//   - Lifecycle hooks: OnNavigatedTo, OnNavigatedFrom, OnClosing.
-//
-// COMMANDS
-//   ViewModels do not create command objects; they expose commands from the central
-//   command manager: AppContext.Commands.Get("<module>.<action>").
-//
-// HOT-SWAP
-//   ViewModels that must keep their state implement IStatefulViewModel.
-//
-// RESPONSIVE
-//   - Implements IResponsiveView: SizeClass / HeightClass are pushed in by the hosting frame or
-//     window (ResponsiveLayoutManager) and raise PropertyChanged, so bindings and visual states
-//     can switch layouts (e.g. list + detail side by side in Expanded, stacked in Compact).
-//   - ViewModels never assume a window or screen size.
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
+namespace GoldenHive.NET.WinUI.Framework.Mvvm;
+
+/// <summary>
+/// Base class of all ViewModels in the host and in modules (WIFI: ViewModelAppObjekt).
+/// Self-written INotifyPropertyChanged, busy counter with logging, size classes and lifecycle hooks.
+/// </summary>
+public abstract class ViewModelAppObject : AppObject, INotifyPropertyChanged, IResponsiveView
+{
+    private int _busyCounter;
+    private string _title = string.Empty;
+    private SizeClass _sizeClass = SizeClass.Expanded;
+    private HeightClass _heightClass = HeightClass.Regular;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Title shown in tabs, window titles and the navigation wheel.</summary>
+    public string Title
+    {
+        get => _title;
+        set => SetProperty(ref _title, value);
+    }
+
+    /// <summary>True while at least one operation started with <see cref="BeginWork"/> is running.</summary>
+    public bool IsBusy => Volatile.Read(ref _busyCounter) > 0;
+
+    public SizeClass SizeClass
+    {
+        get => _sizeClass;
+        set
+        {
+            if (SetProperty(ref _sizeClass, value))
+            {
+                OnSizeClassChanged();
+            }
+        }
+    }
+
+    public HeightClass HeightClass
+    {
+        get => _heightClass;
+        set => SetProperty(ref _heightClass, value);
+    }
+
+    /// <summary>Called when the view was opened or navigated to.</summary>
+    public virtual void OnNavigatedTo(object? parameter)
+    {
+    }
+
+    /// <summary>Called when another view became active.</summary>
+    public virtual void OnNavigatedFrom()
+    {
+    }
+
+    /// <summary>Return false to keep the view open (e.g. unsaved changes).</summary>
+    public virtual bool CanClose() => true;
+
+    /// <summary>Called after the view was closed.</summary>
+    public virtual void OnClosed()
+    {
+    }
+
+    /// <summary>
+    /// Raises PropertyChanged. WinUI requires the UI thread, so calls from background threads are
+    /// marshalled through the context's dispatcher.
+    /// </summary>
+    protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = "")
+    {
+        var handler = PropertyChanged;
+        if (handler is null)
+        {
+            return;
+        }
+
+        var args = new PropertyChangedEventArgs(propertyName);
+        var dispatcher = HasAppContext ? AppContext.Dispatcher : null;
+        if (dispatcher is null || dispatcher.HasThreadAccess)
+        {
+            handler(this, args);
+        }
+        else
+        {
+            dispatcher.Run(() => handler(this, args));
+        }
+    }
+
+    /// <summary>Assigns the value and raises PropertyChanged if it changed.</summary>
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return false;
+        }
+
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    /// <summary>Marks the start of an operation (WIFI: StartProtokollieren). Pair with <see cref="EndWork"/> in finally.</summary>
+    protected void BeginWork([CallerMemberName] string methodName = "")
+    {
+        if (Interlocked.Increment(ref _busyCounter) == 1)
+        {
+            OnPropertyChanged(nameof(IsBusy));
+        }
+
+        if (HasAppContext)
+        {
+            AppContext.Log.Write($"{this}.{methodName} starts", LogEntryType.Start, ToString());
+        }
+    }
+
+    /// <summary>Marks the end of an operation (WIFI: EndeProtokollieren).</summary>
+    protected void EndWork([CallerMemberName] string methodName = "")
+    {
+        if (Interlocked.Decrement(ref _busyCounter) == 0)
+        {
+            OnPropertyChanged(nameof(IsBusy));
+        }
+
+        if (HasAppContext)
+        {
+            AppContext.Log.Write($"{this}.{methodName} ends", LogEntryType.End, ToString());
+        }
+    }
+
+    protected virtual void OnSizeClassChanged()
+    {
+    }
+}

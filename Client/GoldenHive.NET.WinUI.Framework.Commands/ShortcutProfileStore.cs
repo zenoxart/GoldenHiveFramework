@@ -1,15 +1,18 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : ShortcutProfileStore.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Persists shortcut presets and user overrides.
-//
-// BEHAVIOUR
-//   - User overrides in RoamingDataPath\Shortcuts.json (JsonController) and synchronized with
-//     the Configuration Service, so they follow the user to other devices.
-//   - Built-in presets shipped with the host; tenant presets from the Configuration Service.
-//   - Stores gestures as text ("Ctrl+K Ctrl+D") plus the scope and the command ID.
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>Persists the user's shortcut overrides in RoamingDataPath\Shortcuts.json (command ID -> gestures).</summary>
+public sealed class ShortcutProfileStore : AppObject
+{
+    private JsonController<Dictionary<string, List<string>>>? _json;
+
+    public string FilePath => Path.Combine(AppContext.RoamingDataPath, "Shortcuts.json");
+
+    private JsonController<Dictionary<string, List<string>>> Json => _json ??= AppContext.Produce<JsonController<Dictionary<string, List<string>>>>();
+
+    public Dictionary<string, List<string>> Load() =>
+        Json.TryLoad(FilePath) ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+    public void Save(Dictionary<string, List<string>> overrides) => Json.TrySave(overrides, FilePath);
+}

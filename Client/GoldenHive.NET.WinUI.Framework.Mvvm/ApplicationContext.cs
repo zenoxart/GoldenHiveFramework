@@ -1,51 +1,159 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Mvvm
-// File    : ApplicationContext.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Provides the infrastructure of the application and produces all application objects.
-//   Equivalent of AppKontext in WIFI.Anwendung. Exactly one root instance exists per process;
-//   derived contexts add services (ClientAppContext in the host, ModuleAppContext per module).
-//
-// OBJECT FACTORY
-//   Produce<T>() where T : IAppContext, new()
-//     1. Create the object.
-//     2. Set its AppContext property to this context.
-//     3. If it is an AppObject: attach a handler to ErrorOccurred that writes the error to the Log
-//        (so no error of an application object goes unnoticed).
-//     4. Write a "produced" entry to the log (type NewInstance).
-//     5. Hook for derived contexts (virtual): further production steps, e.g. the
-//        ModuleAppContext remembers produced objects so it can release them on unload.
-//     6. Return the object.
-//   The method is virtual so derived contexts extend production (as DatenbankAppKontext did).
-//
-// LAZY SERVICES (base context)
-//   Each service is created on first access via Produce<T>() and cached in a private field:
-//   - Log        : LogManager
-//   - Languages  : LanguageManager
-//   - Cache      : thread-safe key/value cache for the session
-//   Derived contexts add their own services the same way.
-//
-// UI THREAD
-//   - Dispatcher (IUiDispatcher): owned by the central command manager. The context only
-//     holds a reference; the ClientAppContext sets it to Commands.Dispatcher at startup
-//     (WIFI set Protokoll.Dispatcher = WpfApp.Dispatcher). Used by ViewModelAppObject and
-//     LogManager to marshal changes onto the UI thread.
-//
-// PATHS (cached, directories are created if missing)
-//   - LocalDataPath   : packaged -> ApplicationData.LocalFolder
-//                       unpackaged -> %LocalAppData%\<Company>\<Title>\<Version>
-//   - RoamingDataPath : packaged -> ApplicationData.RoamingFolder (or LocalFolder\Roaming)
-//                       unpackaged -> %AppData%\<Company>\<Title>\<Version>
-//   - ApplicationPath : folder the app was started from (AppContext.BaseDirectory,
-//                       not Assembly.Location - empty for single-file builds)
-//   - Company, title and version come from the entry assembly attributes; characters that are
-//     invalid in paths are replaced (WIFI fix of 2021-01-28: "/" and "&").
-//
-// RULES
-//   - The context contains infrastructure only - no business logic.
-//   - All services are AppObjects; nothing outside the context news them up.
-//   - Thread-safe lazy creation (services may be requested from background threads).
+using System.Collections.Concurrent;
+using System.Reflection;
+
+namespace GoldenHive.NET.WinUI.Framework.Mvvm;
+
+/// <summary>
+/// Provides the infrastructure of the application and produces all application objects
+/// (WIFI: AppKontext). Named ApplicationContext because "AppContext" would clash with System.AppContext.
+/// Derived contexts (ClientAppContext, ModuleAppContext) add services the same way.
+/// </summary>
+public class ApplicationContext
+{
+    private static bool? _isPackaged;
+    private readonly object _sync = new();
+    private LogManager? _log;
+    private LanguageManager? _languages;
+    private string? _localDataPath;
+    private string? _roamingDataPath;
+
+    /// <summary>True when the app runs with package identity (MSIX).</summary>
+    public static bool IsPackaged
+    {
+        get
+        {
+            if (_isPackaged is null)
+            {
+                try
+                {
+                    _ = Windows.ApplicationModel.Package.Current.Id;
+                    _isPackaged = true;
+                }
+                catch
+                {
+                    _isPackaged = false;
+                }
+            }
+
+            return _isPackaged.Value;
+        }
+    }
+
+    /// <summary>The application log (WIFI: Protokoll).</summary>
+    public LogManager Log
+    {
+        get
+        {
+            if (_log is null)
+            {
+                lock (_sync)
+                {
+                    // Created directly: producing it would write a log entry before the log exists.
+                    _log ??= new LogManager { AppContext = this };
+                }
+            }
+
+            return _log;
+        }
+    }
+
+    /// <summary>The application languages and texts (WIFI: Sprachen).</summary>
+    public LanguageManager Languages => GetOrProduce(ref _languages);
+
+    /// <summary>Session cache.</summary>
+    public ConcurrentDictionary<string, object> Cache { get; } = new();
+
+    /// <summary>UI dispatcher; owned by the central command manager and set by the host at startup.</summary>
+    public IUiDispatcher? Dispatcher { get; set; }
+
+    /// <summary>Company name used in data paths.</summary>
+    public virtual string Company => EntryAssembly?.GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "GoldenHive";
+
+    /// <summary>Product name used in data paths.</summary>
+    public virtual string Title => EntryAssembly?.GetCustomAttribute<AssemblyProductAttribute>()?.Product ?? EntryAssembly?.GetName().Name ?? "GoldenHive";
+
+    /// <summary>Version used in data paths.</summary>
+    public virtual string Version => EntryAssembly?.GetName().Version?.ToString(3) ?? "1.0.0";
+
+    /// <summary>Machine-local data folder (packaged: LocalState; unpackaged: %LocalAppData%\Company\Title\Version).</summary>
+    public string LocalDataPath => EnsureDirectory(ref _localDataPath, () => IsPackaged
+        ? Windows.Storage.ApplicationData.Current.LocalFolder.Path
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), SafeName(Company), SafeName(Title), Version));
+
+    /// <summary>User data folder that may roam (packaged: RoamingState; unpackaged: %AppData%\Company\Title\Version).</summary>
+    public string RoamingDataPath => EnsureDirectory(ref _roamingDataPath, () => IsPackaged
+        ? Windows.Storage.ApplicationData.Current.RoamingFolder.Path
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), SafeName(Company), SafeName(Title), Version));
+
+    /// <summary>Folder the application was started from.</summary>
+    public string ApplicationPath => System.AppContext.BaseDirectory;
+
+    private static Assembly? EntryAssembly => Assembly.GetEntryAssembly();
+
+    /// <summary>
+    /// Returns an initialized application object (WIFI: Produziere): sets the context, attaches an
+    /// error handler that writes to the log, logs the production and calls <see cref="AppObject.OnCreated"/>.
+    /// </summary>
+    public virtual T Produce<T>()
+        where T : IAppContext, new()
+    {
+        var produced = new T();
+        produced.AppContext = this;
+
+        if (produced is AppObject appObject && produced is not LogManager)
+        {
+            appObject.ErrorOccurred += (sender, e) =>
+                Log.Write($"{sender} reported an error: {e.Cause.Message}", LogEntryType.Error, sender?.ToString(), e.Cause);
+        }
+
+        if (produced is not LogManager)
+        {
+            Log.Write($"{produced} was produced", LogEntryType.NewInstance);
+        }
+
+        OnProduced(produced);
+        (produced as AppObject)?.OnCreated();
+        return produced;
+    }
+
+    /// <summary>Hook for derived contexts: further production steps.</summary>
+    protected virtual void OnProduced(object produced)
+    {
+    }
+
+    /// <summary>Thread-safe lazy creation of a service field via <see cref="Produce{T}"/>.</summary>
+    protected T GetOrProduce<T>(ref T? field)
+        where T : class, IAppContext, new()
+    {
+        if (field is null)
+        {
+            lock (_sync)
+            {
+                field ??= Produce<T>();
+            }
+        }
+
+        return field;
+    }
+
+    private static string SafeName(string name)
+    {
+        // WIFI fix of 2021-01-28: characters such as "/" and "&" in company or title broke the path.
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string(name.Select(c => invalid.Contains(c) || c == '&' ? '_' : c).ToArray());
+    }
+
+    private string EnsureDirectory(ref string? field, Func<string> factory)
+    {
+        if (field is null)
+        {
+            lock (_sync)
+            {
+                field ??= factory();
+            }
+        }
+
+        Directory.CreateDirectory(field);
+        return field;
+    }
+}

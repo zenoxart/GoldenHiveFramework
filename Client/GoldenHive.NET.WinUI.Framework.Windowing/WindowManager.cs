@@ -1,41 +1,176 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Windowing
-// File    : WindowManager.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Manages the application windows and their positions. An AppObject produced by the
-//   ClientAppContext (Context.Windows). Equivalent of FensterManager in WIFI.Anwendung.
-//
-// POSITIONS
-//   - Store(position): add or update the position of a window (name, state, left, top,
-//     width, height); only take values that are present (null keeps the old value).
-//   - Get(windowName): return the stored position or null.
-//   - The key is the window name plus the current monitor count (e.g. "ShellWindow1_M2"),
-//     so a window is not restored onto a monitor that no longer exists (WIFI 2021-02-04).
-//     In WinUI the monitors come from DisplayArea.FindAll(); additionally check that the
-//     position lies inside a current DisplayArea's work area.
-//   - Save(): write the list via JsonController to LocalDataPath\Windows.json;
-//     errors are reported via OnErrorOccurred.
-//   - The list is loaded lazily; a missing file (new user) is not an error.
-//
-// WINDOWS
-//   - Apply/read positions through AppWindow (Move, Resize, OverlappedPresenter state).
-//   - Main window and optional extra windows (e.g. a document in its own window).
-//   - Per window: register its DispatcherQueue with Context.Commands.Dispatcher on open and
-//     unregister it on close; the main window's queue becomes the default queue.
-//
-// NAVIGATION WHEEL
-//   Each window has its own navigation wheel and activation history; a window losing
-//   activation closes its open wheel.
-//
-// SHORTCUTS
-//   Registers every window's root element with the ShortcutInputRouter on open and removes it on close.
-//
-// RESPONSIVE AND DETACHED VIEWS
-//   - Owns a ResponsiveLayoutManager per window and the DetachedViewManager.
-//   - Window positions are now persisted through the WindowPlacementStore with a stable monitor
-//     identity (replaces the monitor-count key); the main window and every detached view are
-//     restored on the monitor they were on.
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Windows.Graphics;
+
+namespace GoldenHive.NET.WinUI.Framework.Windowing;
+
+/// <summary>
+/// Manages the application windows (WIFI: FensterManager): restores and saves their placement per monitor
+/// in AppData, enforces minimum sizes, registers each window's DispatcherQueue with the command pool's
+/// dispatcher and connects its keyboard input to the shortcut manager.
+/// </summary>
+public sealed class WindowManager : AppObject
+{
+    private readonly Dictionary<string, Window> _windows = new(StringComparer.OrdinalIgnoreCase);
+    private WindowPlacementStore? _placements;
+    private ResponsiveLayoutManager? _responsive;
+
+    public event EventHandler<Window>? WindowClosed;
+
+    public WindowPlacementStore Placements => _placements ??= AppContext.Produce<WindowPlacementStore>();
+
+    public ResponsiveLayoutManager Responsive => _responsive ??= AppContext.Produce<ResponsiveLayoutManager>();
+
+    public IReadOnlyDictionary<string, Window> Windows => _windows;
+
+    /// <summary>
+    /// Starts managing a window. Call after its Content is set and before Activate():
+    /// restores the saved placement, applies the minimum size and wires up dispatcher and shortcuts.
+    /// </summary>
+    public void Track(Window window, string key, int minWidth = 360, int minHeight = 480, bool isMain = false)
+    {
+        _windows[key] = window;
+        var appWindow = window.AppWindow;
+        if (appWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.PreferredMinimumWidth = minWidth;
+            presenter.PreferredMinimumHeight = minHeight;
+        }
+
+        var maximize = Placements.Get(key) is { } placement && Restore(appWindow, placement);
+
+        var commands = (AppContext as ICommandContext)?.Commands;
+        commands?.Dispatcher.Register(key, window.DispatcherQueue, isMain);
+        if (window.Content is UIElement root)
+        {
+            commands?.InputRouter.Attach(root);
+        }
+
+        var activatedOnce = false;
+        window.Activated += (_, _) =>
+        {
+            if (activatedOnce)
+            {
+                return;
+            }
+
+            activatedOnce = true;
+            if (maximize && appWindow.Presenter is OverlappedPresenter overlapped)
+            {
+                overlapped.Maximize();
+            }
+        };
+
+        appWindow.Changed += (_, e) =>
+        {
+            if (e.DidPositionChange || e.DidSizeChange || e.DidPresenterChange)
+            {
+                Capture(appWindow, key);
+            }
+        };
+
+        window.Closed += (_, _) =>
+        {
+            _windows.Remove(key);
+            commands?.Dispatcher.Unregister(key);
+            if (window.Content is UIElement content)
+            {
+                commands?.InputRouter.Detach(content);
+            }
+
+            WindowClosed?.Invoke(this, window);
+        };
+
+        AppContext.Log.Write($"Window '{key}' is managed", LogEntryType.Information, nameof(WindowManager));
+    }
+
+    private static DisplayArea? FindDisplay(WindowPlacement placement)
+    {
+        var all = DisplayArea.FindAll();
+        for (var i = 0; i < all.Count; i++)
+        {
+            var bounds = all[i].OuterBounds;
+            if (bounds.X == placement.MonitorX && bounds.Y == placement.MonitorY && bounds.Width == placement.MonitorWidth && bounds.Height == placement.MonitorHeight)
+            {
+                return all[i];
+            }
+        }
+
+        // Same resolution elsewhere (monitors rearranged) is the next best match.
+        for (var i = 0; i < all.Count; i++)
+        {
+            var bounds = all[i].OuterBounds;
+            if (bounds.Width == placement.MonitorWidth && bounds.Height == placement.MonitorHeight)
+            {
+                return all[i];
+            }
+        }
+
+        return null;
+    }
+
+    private bool Restore(AppWindow appWindow, WindowPlacement placement)
+    {
+        try
+        {
+            if (placement.Width <= 0 || placement.Height <= 0)
+            {
+                return placement.Maximized;
+            }
+
+            var display = FindDisplay(placement) ?? DisplayArea.Primary;
+            var work = display.WorkArea;
+            var width = Math.Min(placement.Width, work.Width);
+            var height = Math.Min(placement.Height, work.Height);
+            var x = work.X + Math.Clamp(placement.X, 0, Math.Max(0, work.Width - width));
+            var y = work.Y + Math.Clamp(placement.Y, 0, Math.Max(0, work.Height - height));
+            appWindow.MoveAndResize(new RectInt32(x, y, width, height));
+            return placement.Maximized;
+        }
+        catch (Exception ex)
+        {
+            OnErrorOccurred(ex);
+            return false;
+        }
+    }
+
+    private void Capture(AppWindow appWindow, string key)
+    {
+        try
+        {
+            if (!appWindow.IsVisible)
+            {
+                return;
+            }
+
+            var state = (appWindow.Presenter as OverlappedPresenter)?.State ?? OverlappedPresenterState.Restored;
+            if (state == OverlappedPresenterState.Minimized)
+            {
+                return;
+            }
+
+            var display = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Nearest);
+            var placement = Placements.Get(key) ?? new WindowPlacement { Key = key };
+            placement.Maximized = state == OverlappedPresenterState.Maximized;
+            placement.MonitorX = display.OuterBounds.X;
+            placement.MonitorY = display.OuterBounds.Y;
+            placement.MonitorWidth = display.OuterBounds.Width;
+            placement.MonitorHeight = display.OuterBounds.Height;
+            if (!placement.Maximized)
+            {
+                placement.X = appWindow.Position.X - display.WorkArea.X;
+                placement.Y = appWindow.Position.Y - display.WorkArea.Y;
+                placement.Width = appWindow.Size.Width;
+                placement.Height = appWindow.Size.Height;
+            }
+
+            Placements.Set(placement);
+        }
+        catch (Exception ex)
+        {
+            AppContext.Log.Write($"Could not capture the placement of '{key}': {ex.Message}", LogEntryType.Warning, nameof(WindowManager));
+        }
+    }
+}

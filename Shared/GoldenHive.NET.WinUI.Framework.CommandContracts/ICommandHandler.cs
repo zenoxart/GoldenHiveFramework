@@ -1,19 +1,18 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.CommandContracts
-// File    : ICommandHandler.cs
-// Layer   : Shared / Contracts
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Contract for a command's implementation inside a module.
-//
-// METHODS (described)
-//   - CanExecute(parameter)
-//   - ExecuteAsync(parameter, CancellationToken)
-//   - optional IsChecked(parameter) for toggle and radio commands
-//   - optional event when CanExecute / IsChecked changes (the manager then triggers a requery).
-//
-// DISABLED REASON
-//   - optional GetDisabledReason(parameter): returns a reason key (e.g. "noPermission",
-//     "nothingSelected") shown in the tooltip when CanExecute is false.
+namespace GoldenHive.NET.WinUI.Framework.CommandContracts;
+
+/// <summary>Implementation of a command, provided by the host or a module.</summary>
+public interface ICommandHandler
+{
+    /// <summary>Raised when <see cref="CanExecute"/> or the checked state may have changed.</summary>
+    event EventHandler? CanExecuteChanged;
+
+    bool CanExecute(object? parameter);
+
+    Task ExecuteAsync(object? parameter, CancellationToken cancellationToken);
+
+    /// <summary>Checked state for toggle commands; null for normal commands.</summary>
+    bool? IsChecked(object? parameter) => null;
+
+    /// <summary>Reason key (e.g. "noPermission") shown when the command is disabled.</summary>
+    string? GetDisabledReason(object? parameter) => null;
+}

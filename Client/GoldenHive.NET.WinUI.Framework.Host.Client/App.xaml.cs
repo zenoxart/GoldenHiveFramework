@@ -1,45 +1,45 @@
-﻿using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
+using System.Globalization;
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.Host.Client.Hosting;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using Microsoft.UI.Xaml;
 
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+namespace GoldenHive.NET.WinUI.Framework.Host.Client;
 
-namespace GoldenHive.NET.WinUI.Framework.Host.Client
+/// <summary>
+/// Golden Hive host application. Creates the client application context, registers texts, shell commands
+/// and built-in views, then opens the main window.
+/// </summary>
+public partial class App : Application
 {
-    /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
-    /// </summary>
-    public partial class App : Application
+    private MainWindow? _window;
+
+    public App()
     {
-        private Window? _window;
+        InitializeComponent();
+        UnhandledException += (_, e) =>
+            Context.Log.Write($"Unhandled exception: {e.Message}", LogEntryType.Error, nameof(App), e.Exception);
+    }
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
-        public App()
-        {
-            InitializeComponent();
-        }
+    /// <summary>The root application context (WIFI: AppKontext of the client).</summary>
+    public static ClientAppContext Context { get; } = new();
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
-        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
-        {
-            _window = new MainWindow();
-            _window.Activate();
-        }
+    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    {
+        // Application resources can only be changed once XAML is running, not in the App constructor.
+        Theme.GoldenHiveTheme.Apply(Resources);
+
+        var context = Context;
+        context.Dispatcher = context.Commands.Dispatcher;
+        HostTexts.Register(context.Languages);
+        context.Languages.Set(context.Settings.Current.Language ?? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
+        context.Log.Write("Golden Hive starts", LogEntryType.Start, nameof(App));
+
+        Ui.Initialize(context.Commands);
+        ShellCommands.Register(context, () => _window);
+        BuiltInViews.Register(context);
+
+        _window = new MainWindow(context);
+        _window.Activate();
     }
 }

@@ -1,29 +1,28 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Docking
-// File    : DockLayoutStore.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Persists dock layouts in AppData.
-//
-// LOCATION
-//   LocalDataPath\Layout\DockLayout.json (JsonController), next to WindowLayout.json:
-//   - packaged:   %LocalAppData%\Packages\<package family>\LocalState\Layout\
-//   - unpackaged: %LocalAppData%\GoldenHive\<Title>\<Version>\Layout\
-//
-// CONTENTS
-//   - The current layout of the main window and of every floating window (DockLayoutModel);
-//     floating window positions are referenced from the WindowPlacementStore (monitor-aware).
-//   - Named layouts ("Window > Save Window Layout", "Apply Window Layout", up to 10, Ctrl+Alt+n
-//     avoided because of AltGr) and "Reset Window Layout" back to the default layout.
-//   - Default layout = shell defaults + the modules' ViewDescriptors.
-//
-// RULES
-//   - Saved on every layout change (debounced) and on app close; restored at start before the
-//     detached/floating views are reopened.
-//   - Views whose module is missing stay as placeholders; unknown future fields are preserved;
-//     the model version allows migrations.
-//   - Optionally synced via the Configuration Service ("use my layout on other devices"),
-//     applied with the local monitor setup.
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Docking;
+
+/// <summary>Persists the dock layout in AppData: LocalDataPath\Layout\DockLayout.json.</summary>
+public sealed class DockLayoutStore : AppObject
+{
+    private JsonController<DockLayoutState>? _json;
+
+    public string FilePath => Path.Combine(AppContext.LocalDataPath, "Layout", "DockLayout.json");
+
+    private JsonController<DockLayoutState> Json => _json ??= AppContext.Produce<JsonController<DockLayoutState>>();
+
+    public DockLayoutState? Load() => Json.TryLoad(FilePath);
+
+    public void Save(DockLayoutState state) => Json.TrySave(state, FilePath);
+
+    public void Delete()
+    {
+        try
+        {
+            File.Delete(FilePath);
+        }
+        catch (IOException)
+        {
+        }
+    }
+}

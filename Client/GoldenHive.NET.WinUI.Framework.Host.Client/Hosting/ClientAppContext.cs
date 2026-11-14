@@ -1,55 +1,39 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Host.Client
-// File    : ClientAppContext.cs
-// Layer   : Client / Host
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   The application context of the WinUI client. Derives from ApplicationContext and adds
-//   all framework services. Equivalent of DatenbankAppKontext in WIFI.Anwendung.Datenbank.
-//   Replaces a generic DI host: the context is the composition root and service locator.
-//
-// LAZY SERVICES (each produced on first access via Produce<T>() and cached)
-//   - Windows        : WindowManager (Windowing)
-//   - Commands       : RelayCommandPool - the central command manager (Commands)
-//   - Modules        : ModuleLoader (ModuleLoader)
-//   - XamlMetadata   : ModuleXamlMetadataProvider (XamlMetadata)
-//   - HotSwap        : HotSwapManager (HotSwap)
-//   - Navigation     : NavigationService (Navigation)
-//   - Notifications  : NotificationHubClient + router (NotificationClient)
-//   - Security       : AuthenticationService, PermissionService (Security)
-//   - Api            : HttpClient factory configured for the API Gateway
-//   - Settings       : user settings (JSON in RoamingDataPath)
-//   inherited: Log, Languages, Cache, paths.
-//
-// DISPATCHER
-//   - Dispatcher (inherited, IUiDispatcher) is set to Commands.Dispatcher right after the
-//     command manager is produced - the command pool owns the UI dispatcher.
-//
-// PRODUCTION (override of Produce<T>)
-//   1. base.Produce<T>() (context set, error handler attached, log entry written).
-//   2. Additionally route ErrorOccurred of framework services to the InfoBar area of the shell
-//      (via Notifications) in addition to the log.
-//   3. Except for the LogManager itself, to avoid recursion.
-//
-// FACTORY FOR MODULES
-//   - CreateModuleContext(manifest): produces a ModuleAppContext whose parent is this context.
-//
-// RULES
-//   - Exactly one instance, created in Program.Main before the WinUI Application.
-//   - Lives until the process ends; ShutdownAsync() saves settings and window positions,
-//     disconnects notifications and unloads modules.
-//
-// WORKFLOWS
-//   - Workflows : WorkflowManager (Workflows) - catalogue, runner, designer, impact overview,
-//     AI hand-over and approval inbox.
-//
-// SHORTCUTS
-//   - Shortcuts : Commands.Shortcuts (the ShortcutManager inside the command pool).
-//
-// DOCK LAYOUT
-//   - Dock : DockManager (Docking) - document well, tool windows, floating windows, layouts.
-//
-// ICONS
-//   - Icons : IconCatalog (XamlMetadata) - icon names -> WinUI icons, shell + module icons.
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.Docking;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using GoldenHive.NET.WinUI.Framework.Navigation;
+using GoldenHive.NET.WinUI.Framework.Windowing;
+using GoldenHive.NET.WinUI.Framework.XamlMetadata;
+
+namespace GoldenHive.NET.WinUI.Framework.Host.Client.Hosting;
+
+/// <summary>
+/// The application context of the WinUI client (WIFI: DatenbankAppKontext). Adds every framework service
+/// as a lazily produced property; it is the composition root of the host.
+/// </summary>
+public sealed class ClientAppContext : ApplicationContext, ICommandContext, IIconContext, IWindowContext, IDockContext, INavigationContext
+{
+    private RelayCommandPool? _commands;
+    private IconCatalog? _icons;
+    private WindowManager? _windows;
+    private DockManager? _dock;
+    private NavigationService? _navigation;
+    private HostSettingsStore? _settings;
+
+    public override string Company => "ZenoxArt";
+
+    public override string Title => "GoldenHive";
+
+    /// <summary>The central command manager (incl. dispatcher and shortcut manager).</summary>
+    public RelayCommandPool Commands => GetOrProduce(ref _commands);
+
+    public IconCatalog Icons => GetOrProduce(ref _icons);
+
+    public WindowManager Windows => GetOrProduce(ref _windows);
+
+    public DockManager Dock => GetOrProduce(ref _dock);
+
+    public NavigationService Navigation => GetOrProduce(ref _navigation);
+
+    public HostSettingsStore Settings => GetOrProduce(ref _settings);
+}

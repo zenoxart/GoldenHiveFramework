@@ -1,35 +1,60 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Windowing
-// File    : WindowPlacementStore.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Stores window placements and the detached-view session in AppData.
-//
-// LOCATION
-//   LocalDataPath\Layout\WindowLayout.json (JsonController)
-//   - packaged:   %LocalAppData%\Packages\<package family>\LocalState\Layout\
-//   - unpackaged: %LocalAppData%\GoldenHive\<Title>\<Version>\Layout\
-//   Local (not roaming) on purpose: monitor setups are specific to each machine.
-//
-// CONTENT PER WINDOW
-//   - Window key: "main" or "detached:<navigationKey>:<parameterHash>".
-//   - Monitor identity: stable monitor ID (device interface ID from
-//     Windows.Devices.Display.DisplayMonitor), plus monitor resolution and work area as fallback
-//     match. DisplayArea IDs are not used for storage because they change between sessions.
-//   - Placement relative to that monitor's work area (left, top, width, height in physical
-//     pixels) and the monitor's DPI scale at the time of saving.
-//   - State: normal, maximized, minimized-is-stored-as-normal; always-on-top flag.
-//   - For detached views: module ID, navigation key, serialized parameter, open at close (bool).
-//   - Saved on every move/resize (debounced) and on app close, so a crash does not lose layout.
-//
-// RESTORE RULES
-//   1. Saved monitor connected -> place the window there at the saved relative position,
-//      scaled if the DPI changed.
-//   2. Monitor missing -> use the monitor with the same resolution/arrangement if found,
-//      otherwise the primary monitor (the window is never restored off-screen).
-//   3. Always clamp the window into the target work area (taskbar respected) and to the
-//      window type's minimum size.
-//   4. Maximized windows are first placed on the saved monitor, then maximized there.
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Windowing;
+
+/// <summary>
+/// Stores window placements in AppData: LocalDataPath\Layout\WindowLayout.json
+/// (local, not roaming: monitor setups differ per machine). Saved debounced after moves and on close.
+/// </summary>
+public sealed class WindowPlacementStore : AppObject
+{
+    private readonly object _sync = new();
+    private WindowLayoutFile? _data;
+    private Timer? _saveTimer;
+    private JsonController<WindowLayoutFile>? _json;
+
+    public string FilePath => Path.Combine(AppContext.LocalDataPath, "Layout", "WindowLayout.json");
+
+    private JsonController<WindowLayoutFile> Json => _json ??= AppContext.Produce<JsonController<WindowLayoutFile>>();
+
+    public WindowPlacement? Get(string key)
+    {
+        lock (_sync)
+        {
+            return Data.Windows.TryGetValue(key, out var placement) ? placement : null;
+        }
+    }
+
+    public void Set(WindowPlacement placement)
+    {
+        lock (_sync)
+        {
+            Data.Windows[placement.Key] = placement;
+        }
+
+        SaveSoon();
+    }
+
+    /// <summary>Saves immediately (e.g. on app close).</summary>
+    public void Save()
+    {
+        WindowLayoutFile copy;
+        lock (_sync)
+        {
+            copy = new WindowLayoutFile { Windows = new Dictionary<string, WindowPlacement>(Data.Windows, StringComparer.OrdinalIgnoreCase) };
+        }
+
+        Json.TrySave(copy, FilePath);
+    }
+
+    private WindowLayoutFile Data => _data ??= Json.TryLoad(FilePath) ?? new WindowLayoutFile();
+
+    private void SaveSoon()
+    {
+        lock (_sync)
+        {
+            _saveTimer ??= new Timer(_ => Save());
+            _saveTimer.Change(TimeSpan.FromMilliseconds(600), Timeout.InfiniteTimeSpan);
+        }
+    }
+}

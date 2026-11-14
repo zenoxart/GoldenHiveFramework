@@ -1,32 +1,61 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Navigation
-// File    : NavigationRegistry.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Directory of all navigation targets.
-//
-// ENTRY
-//   Key (e.g. "documents.list"), module ID, ViewModel factory, view factory,
-//   required permission.
-//
-// INTEGRATION WITH THE COMMAND MANAGER
-//   - Every navigation target is also registered as a command "navigate.<key>" with a
-//     placement in "shell.navigation" (and optionally in the main menu).
-//   - Titles, icons, grouping and order therefore come from the command descriptor;
-//     the navigation tree is a command tree like any other menu.
-//
-// BEHAVIOUR
-//   - Modules add targets on initialization and remove them on unload.
-//
-// NAVIGATION WHEEL
-//   - A module's primary navigation target is automatically placed in "shell.wheel" as the
-//     module's inner-ring segment (navigate.<module>.home).
-//   - Further targets appear in the module's outer ring when they declare a placement under
-//     "shell.wheel/<moduleId>".
-//
-// DETACHABLE
-//   - Each target declares Detachable (default true), MinimumSize for its detached window and
-//     whether its parameter can be serialized for session restore.
+using System.Collections.Concurrent;
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.Commands;
+using GoldenHive.NET.WinUI.Framework.ModuleContracts;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Navigation;
+
+/// <summary>
+/// Directory of all navigation targets. Every target is also registered as command "navigate.&lt;key&gt;"
+/// with placements in the navigation tree, the navigation wheel (module homes) and the View menu,
+/// so all menus are command trees.
+/// </summary>
+public sealed class NavigationRegistry : AppObject
+{
+    public const string NavigationPlacement = "shell.navigation";
+    public const string WheelPlacement = "shell.wheel";
+    public const string MainMenuPlacement = "shell.mainmenu";
+
+    private readonly ConcurrentDictionary<string, NavigationTarget> _targets = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyCollection<NavigationTarget> All => _targets.Values.ToList();
+
+    public IReadOnlyList<NavigationTarget> ModuleHomes => _targets.Values.Where(t => t.IsModuleHome).OrderBy(t => t.Order).ToList();
+
+    public NavigationTarget? Find(string key) => _targets.TryGetValue(key, out var target) ? target : null;
+
+    public void Register(NavigationTarget target)
+    {
+        _targets[target.Key] = target;
+        var placements = new List<CommandPlacement> { new(NavigationPlacement, target.Group ?? target.ModuleId, 0, target.Order) };
+        if (target.IsModuleHome)
+        {
+            placements.Add(new CommandPlacement(WheelPlacement, string.Empty, 0, target.Order));
+        }
+
+        if (target.ShowInViewMenu)
+        {
+            placements.Add(new CommandPlacement(MainMenuPlacement, "view", target.View.Role == ViewRole.ToolWindow ? 1 : 0, target.Order));
+        }
+
+        var descriptor = new CommandDescriptor(target.CommandId)
+        {
+            TextKey = target.TextKey,
+            Icon = target.Icon,
+            Permission = target.Permission,
+            Placements = placements,
+            WorkflowCapable = true,
+        };
+        var handler = new DelegateCommandHandler(parameter => Context<INavigationContext>().Navigation.NavigateTo(target.Key, parameter as string));
+        Context<ICommandContext>().Commands.Register(target.ModuleId, descriptor, handler);
+    }
+
+    public void UnregisterModule(string moduleId)
+    {
+        foreach (var target in _targets.Values.Where(t => t.ModuleId.Equals(moduleId, StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            _targets.TryRemove(target.Key, out _);
+        }
+    }
+}

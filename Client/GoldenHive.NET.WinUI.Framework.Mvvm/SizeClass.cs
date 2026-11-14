@@ -1,25 +1,69 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Mvvm
-// File    : SizeClass.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Responsive size classes shared by every view and ViewModel (responsive first).
-//
-// CLASSES (effective pixels of the view's own available width - NOT the screen width)
-//   - Compact  : < 640    one column, navigation collapsed, secondary panels as overlays
-//   - Medium   : 640-1007 two columns where useful, navigation as compact pane
-//   - Expanded : 1008-1919 full layout, navigation pane open, side panels docked
-//   - Wide     : >= 1920  extra columns / side-by-side master-detail
-//   Height classes (Short < 500, Regular) for landscape phones-sized windows and docked panes.
-//
-// WHY "AVAILABLE WIDTH"
-//   A view can be shown in the main window, in a narrow side pane or detached in its own small
-//   window - it must adapt to the space it actually gets.
-//
-// CONTRACT
-//   - IResponsiveView (implemented by ViewModelAppObject): SizeClass, HeightClass properties,
-//     SizeClassChanged event; set by the view host (frame or detached window), never computed
-//     by the ViewModel itself.
+namespace GoldenHive.NET.WinUI.Framework.Mvvm;
+
+/// <summary>Responsive width classes, based on the space a view actually gets (not the screen).</summary>
+public enum SizeClass
+{
+    /// <summary>&lt; 640 epx: one column, navigation collapsed, panels as overlays.</summary>
+    Compact,
+
+    /// <summary>640-1007 epx: two columns where useful.</summary>
+    Medium,
+
+    /// <summary>1008-1919 epx: full layout.</summary>
+    Expanded,
+
+    /// <summary>&gt;= 1920 epx: extra columns.</summary>
+    Wide,
+}
+
+/// <summary>Responsive height classes.</summary>
+public enum HeightClass
+{
+    Short,
+    Regular,
+}
+
+/// <summary>Implemented by ViewModels; the hosting frame or window pushes the classes in.</summary>
+public interface IResponsiveView
+{
+    SizeClass SizeClass { get; set; }
+
+    HeightClass HeightClass { get; set; }
+}
+
+/// <summary>Breakpoints and size-class calculation with hysteresis.</summary>
+public static class SizeClasses
+{
+    public const double MediumMinWidth = 640;
+    public const double ExpandedMinWidth = 1008;
+    public const double WideMinWidth = 1920;
+    public const double RegularMinHeight = 500;
+
+    private static readonly double[] Breakpoints = [MediumMinWidth, ExpandedMinWidth, WideMinWidth];
+
+    /// <summary>
+    /// Computes the class for a width. With a previous class, a breakpoint must be passed by
+    /// <paramref name="hysteresis"/> pixels before the class changes, so layouts do not flicker.
+    /// </summary>
+    public static SizeClass FromWidth(double width, SizeClass? previous = null, double hysteresis = 8)
+    {
+        var result = 0;
+        for (var i = 0; i < Breakpoints.Length; i++)
+        {
+            var threshold = Breakpoints[i];
+            if (previous is { } p)
+            {
+                threshold += (int)p > i ? -hysteresis : hysteresis;
+            }
+
+            if (width >= threshold)
+            {
+                result = i + 1;
+            }
+        }
+
+        return (SizeClass)result;
+    }
+
+    public static HeightClass FromHeight(double height) => height < RegularMinHeight ? HeightClass.Short : HeightClass.Regular;
+}

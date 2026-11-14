@@ -1,55 +1,310 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : ShortcutManager.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   The shortcut manager of the application. Lives inside the RelayCommandPool
-//   (RelayCommandPool.Shortcuts) - every shortcut is bound to a command ID, so commands,
-//   their state and their shortcuts are managed in one place.
-//
-// LAYERS (later layer wins)
-//   1. Shell defaults   : reserved and standard shortcuts of the host (see below).
-//   2. Module defaults  : DefaultShortcuts of the modules' command descriptors.
-//   3. Preset           : selectable profile ("Golden Hive default", "Visual Studio-like", ...).
-//   4. Tenant overrides : from the Configuration Service (admins can enforce or block bindings).
-//   5. User overrides   : the user's own changes (roaming, synced via the Configuration Service).
-//   The result is the effective binding table: gesture + scope -> command ID.
-//
-// RESPONSIBILITIES
-//   - Build and rebuild the effective table when modules load/unload/hot-swap, permissions change
-//     or settings change. User overrides are keyed by command ID, so they survive module updates;
-//     overrides for commands that no longer exist are kept but shown as "orphaned".
-//   - Conflict detection: same gesture in the same or an overlapping scope.
-//       * module vs. reserved shell shortcut -> module binding rejected, logged;
-//       * module vs. module                  -> first registered wins, conflict listed in the
-//                                               settings page for the user to resolve;
-//       * user override                      -> the user is asked to replace the other binding.
-//   - Resolution at key press: find the binding for the gesture in the most specific active scope;
-//     only enabled, permitted commands (CanExecute) are executed - otherwise the key is passed on.
-//   - Provide display text for every command's shortcut: menus, tooltips, command palette,
-//     navigation wheel and cheat sheet all show the effective, localized gesture.
-//   - Import / export of user bindings as JSON; reset per command, per module or all.
-//
-// RESERVED SHELL SHORTCUTS (only the user may remap them, never modules)
-//   Ctrl+Tab / Ctrl+Shift+Tab   navigation wheel (hold gesture)
-//   Ctrl+Shift+P                command palette
-//   Ctrl+K, Ctrl+S              shortcut settings (chord)
-//   Ctrl+/ (hold ~1 s on Ctrl)  shortcut cheat sheet for the current context
-//   F1                          help for the current view
-//   Esc                         close overlay / cancel
-//
-// EVENTS
-//   BindingsChanged -> the ShortcutInputRouter regenerates the windows' accelerators and the
-//   command tree adapters refresh the shortcut text in menus.
-//
-// WINDOW SHORTCUTS (shell defaults, not reserved)
-//   Ctrl+Shift+D  detach current view      Ctrl+Shift+A  attach view back to main window
-//
-// DOCK SHORTCUTS (shell defaults, Visual Studio style, remappable)
-//   Ctrl+F4 close document         Ctrl+F6 / Ctrl+Shift+F6 next / previous document
-//   Shift+Esc hide tool window     Alt+-   pane menu (dock, float, auto-hide)
-//   Alt+Shift+Enter full screen    Ctrl+- / Ctrl+Shift+- navigate backward / forward
-//   Ctrl+Tab stays the navigation wheel (which also lists open documents and tool windows).
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>Where an effective binding comes from.</summary>
+public enum ShortcutSource
+{
+    Shell,
+    Module,
+    User,
+}
+
+/// <summary>One effective binding: gesture + scope -> command.</summary>
+public sealed record ShortcutEntry(string CommandId, KeyGesture Gesture, ShortcutScope Scope, string? ScopeKey, ShortcutSource Source);
+
+/// <summary>Two commands claimed the same gesture in the same scope; the first one won.</summary>
+public sealed record ShortcutConflict(string Gesture, string WinningCommandId, string LosingCommandId);
+
+/// <summary>
+/// The shortcut manager, owned by the RelayCommandPool. Combines shell defaults, module defaults and
+/// user overrides (roaming) into the effective binding table, detects conflicts, protects reserved shell
+/// shortcuts from modules and resolves key presses in the active scopes.
+/// </summary>
+public sealed class ShortcutManager : AppObject
+{
+    /// <summary>Module that owns the shell commands; only it may use reserved gestures.</summary>
+    public const string ShellModuleId = "shell";
+
+    /// <summary>Gestures reserved for the shell (modules cannot claim them; the user may remap them).</summary>
+    public static readonly IReadOnlySet<string> ReservedGestures = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Ctrl+Tab", "Ctrl+Shift+Tab", "Ctrl+Shift+P", "Ctrl+K, Ctrl+S", "F1", "Esc",
+    };
+
+    private readonly object _sync = new();
+    private Dictionary<string, List<string>>? _overrides;
+    private List<ShortcutEntry> _effective = [];
+    private Dictionary<string, List<ShortcutEntry>> _byGesture = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _chordPrefixes = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<ShortcutConflict> _conflicts = [];
+    private bool _dirty = true;
+    private bool _changePosted;
+
+    /// <summary>Raised (coalesced, on the UI thread) after the effective bindings changed.</summary>
+    public event EventHandler? BindingsChanged;
+
+    /// <summary>The currently active scopes besides Global, e.g. (View, "shell.settings"), (Module, "shell").</summary>
+    public IReadOnlyList<(ShortcutScope Scope, string? Key)> ActiveScopes { get; set; } = [];
+
+    public IReadOnlyList<ShortcutEntry> Effective
+    {
+        get
+        {
+            EnsureBuilt();
+            return _effective;
+        }
+    }
+
+    public IReadOnlyList<ShortcutConflict> Conflicts
+    {
+        get
+        {
+            EnsureBuilt();
+            return _conflicts;
+        }
+    }
+
+    private RelayCommandPool Pool => Context<ICommandContext>().Commands;
+
+    private ShortcutProfileStore? _store;
+
+    private ShortcutProfileStore Store => _store ??= AppContext.Produce<ShortcutProfileStore>();
+
+    /// <summary>Marks the table for rebuild (commands, overrides or language changed).</summary>
+    public void Invalidate()
+    {
+        lock (_sync)
+        {
+            _dirty = true;
+            if (_changePosted)
+            {
+                return;
+            }
+
+            _changePosted = true;
+        }
+
+        Pool.Dispatcher.Post(() =>
+        {
+            lock (_sync)
+            {
+                _changePosted = false;
+            }
+
+            BindingsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    /// <summary>Finds the command for a gesture in the most specific active scope.</summary>
+    public string? Resolve(KeyGesture gesture)
+    {
+        EnsureBuilt();
+        if (!_byGesture.TryGetValue(gesture.ToString(), out var entries))
+        {
+            return null;
+        }
+
+        var scopes = ActiveScopes;
+        return entries
+            .Where(e => e.Scope == ShortcutScope.Global || scopes.Any(s => s.Scope == e.Scope && (e.ScopeKey is null || string.Equals(e.ScopeKey, s.Key, StringComparison.OrdinalIgnoreCase))))
+            .OrderByDescending(e => e.Scope)
+            .Select(e => e.CommandId)
+            .FirstOrDefault();
+    }
+
+    /// <summary>True if the gesture is the first step of a chord.</summary>
+    public bool IsChordPrefix(KeyGesture gesture)
+    {
+        EnsureBuilt();
+        return _chordPrefixes.Contains(gesture.ToString());
+    }
+
+    public IReadOnlyList<KeyGesture> GetGestures(string commandId) =>
+        Effective.Where(e => e.CommandId.Equals(commandId, StringComparison.OrdinalIgnoreCase)).Select(e => e.Gesture).ToList();
+
+    /// <summary>Localized display text of the first gesture of a command ("Strg+Umschalt+P"), or null.</summary>
+    public string? GetGestureText(string commandId)
+    {
+        var gesture = GetGestures(commandId).FirstOrDefault();
+        return gesture is null ? null : Format(gesture);
+    }
+
+    /// <summary>Formats a gesture with localized modifier names.</summary>
+    public string Format(KeyGesture gesture) =>
+        gesture.ToDisplayString(m => AppContext.Languages.TryGetText($"shell:key.{m.ToString().ToLowerInvariant()}", out var text) ? text : m.ToString());
+
+    public bool HasUserOverride(string commandId)
+    {
+        EnsureOverrides();
+        lock (_sync)
+        {
+            return _overrides!.ContainsKey(commandId);
+        }
+    }
+
+    /// <summary>Sets the user's gesture for a command; another command using it in the same scope loses it.</summary>
+    public void SetUserGesture(string commandId, KeyGesture gesture)
+    {
+        EnsureBuilt();
+        var key = gesture.ToString();
+        var scope = Pool.GetDescriptor(commandId)?.DefaultShortcuts.FirstOrDefault()?.Scope ?? ShortcutScope.Global;
+        lock (_sync)
+        {
+            foreach (var other in _effective.Where(e => e.Gesture.ToString().Equals(key, StringComparison.OrdinalIgnoreCase) && e.Scope == scope && !e.CommandId.Equals(commandId, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                _overrides![other.CommandId] = _effective
+                    .Where(e => e.CommandId.Equals(other.CommandId, StringComparison.OrdinalIgnoreCase) && !e.Gesture.ToString().Equals(key, StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Gesture.ToString())
+                    .ToList();
+            }
+
+            _overrides![commandId] = [key];
+        }
+
+        SaveOverrides();
+    }
+
+    public void ResetUserGesture(string commandId)
+    {
+        EnsureOverrides();
+        lock (_sync)
+        {
+            _overrides!.Remove(commandId);
+        }
+
+        SaveOverrides();
+    }
+
+    public void ResetAll()
+    {
+        EnsureOverrides();
+        lock (_sync)
+        {
+            _overrides!.Clear();
+        }
+
+        SaveOverrides();
+    }
+
+    private void SaveOverrides()
+    {
+        Dictionary<string, List<string>> copy;
+        lock (_sync)
+        {
+            copy = new Dictionary<string, List<string>>(_overrides!, StringComparer.OrdinalIgnoreCase);
+        }
+
+        Store.Save(copy);
+        Invalidate();
+    }
+
+    private void EnsureOverrides()
+    {
+        if (_overrides is not null)
+        {
+            return;
+        }
+
+        var loaded = Store.Load();
+        lock (_sync)
+        {
+            _overrides ??= new Dictionary<string, List<string>>(loaded, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private void EnsureBuilt()
+    {
+        if (!_dirty)
+        {
+            return;
+        }
+
+        EnsureOverrides();
+        var effective = new List<ShortcutEntry>();
+        var conflicts = new List<ShortcutConflict>();
+        var claimed = new Dictionary<string, ShortcutEntry>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>> overrides;
+        lock (_sync)
+        {
+            overrides = new Dictionary<string, List<string>>(_overrides!, StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Shell first, then user overrides, then modules: the first claim of a gesture in a scope wins.
+        var candidates = new List<ShortcutEntry>();
+        foreach (var registration in Pool.Registry.All)
+        {
+            var id = registration.Descriptor.Id;
+            var isShell = registration.ModuleId.Equals(ShellModuleId, StringComparison.OrdinalIgnoreCase);
+            var defaultScope = registration.Descriptor.DefaultShortcuts.FirstOrDefault();
+            if (overrides.TryGetValue(id, out var userGestures))
+            {
+                foreach (var text in userGestures)
+                {
+                    if (KeyGesture.TryParse(text, out var gesture) && gesture is not null)
+                    {
+                        candidates.Add(new ShortcutEntry(id, gesture, defaultScope?.Scope ?? ShortcutScope.Global, defaultScope?.ScopeKey, ShortcutSource.User));
+                    }
+                }
+
+                continue;
+            }
+
+            foreach (var binding in registration.Descriptor.DefaultShortcuts)
+            {
+                if (!isShell && ReservedGestures.Contains(binding.Gesture.ToString()))
+                {
+                    AppContext.Log.Write($"Shortcut {binding.Gesture} of '{id}' rejected: reserved for the shell.", LogEntryType.Warning, nameof(ShortcutManager));
+                    continue;
+                }
+
+                candidates.Add(new ShortcutEntry(id, binding.Gesture, binding.Scope, binding.ScopeKey, isShell ? ShortcutSource.Shell : ShortcutSource.Module));
+            }
+        }
+
+        foreach (var candidate in candidates.OrderBy(c => c.Source switch { ShortcutSource.Shell => 0, ShortcutSource.User => 1, _ => 2 }))
+        {
+            var claimKey = $"{candidate.Gesture}|{candidate.Scope}|{candidate.ScopeKey}";
+            if (claimed.TryGetValue(claimKey, out var winner))
+            {
+                if (!winner.CommandId.Equals(candidate.CommandId, StringComparison.OrdinalIgnoreCase))
+                {
+                    conflicts.Add(new ShortcutConflict(candidate.Gesture.ToString(), winner.CommandId, candidate.CommandId));
+                }
+
+                continue;
+            }
+
+            claimed[claimKey] = candidate;
+            effective.Add(candidate);
+        }
+
+        var byGesture = new Dictionary<string, List<ShortcutEntry>>(StringComparer.OrdinalIgnoreCase);
+        var prefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in effective)
+        {
+            var key = entry.Gesture.ToString();
+            if (!byGesture.TryGetValue(key, out var list))
+            {
+                list = [];
+                byGesture[key] = list;
+            }
+
+            list.Add(entry);
+            if (entry.Gesture.IsChord)
+            {
+                prefixes.Add(entry.Gesture.FirstPart.ToString());
+            }
+        }
+
+        lock (_sync)
+        {
+            _effective = effective;
+            _byGesture = byGesture;
+            _chordPrefixes = prefixes;
+            _conflicts = conflicts;
+            _dirty = false;
+        }
+    }
+}

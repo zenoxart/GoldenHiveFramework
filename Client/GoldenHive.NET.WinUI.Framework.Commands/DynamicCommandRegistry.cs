@@ -1,16 +1,63 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : DynamicCommandRegistry.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   Maps command IDs to the currently valid implementation (ICommandHandler).
-//
-// RESPONSIBILITIES
-//   - Register(moduleId, descriptor, handler) when a module loads.
-//   - Replace(moduleId, ...) during a hot-swap: switch all IDs of a module atomically.
-//   - Unregister(moduleId) on unload; afterwards CanExecute = false.
-//   - Detect conflicts: two modules registering the same ID -> error, never overwrite.
-//   - Thread-safe, since loading happens in the background and queries on the UI thread.
+using System.Collections.Concurrent;
+using GoldenHive.NET.WinUI.Framework.CommandContracts;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>A registered command: owner module, metadata and current implementation.</summary>
+public sealed record CommandRegistration(string ModuleId, CommandDescriptor Descriptor, ICommandHandler Handler);
+
+/// <summary>
+/// Maps command IDs to the currently valid implementation. A module may replace its own commands
+/// (hot-swap); a command ID owned by another module is never overwritten.
+/// </summary>
+public sealed class DynamicCommandRegistry
+{
+    private readonly ConcurrentDictionary<string, CommandRegistration> _commands = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, (string ModuleId, CommandGroupDescriptor Group)> _groups = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyCollection<CommandRegistration> All => _commands.Values.ToList();
+
+    public IReadOnlyCollection<CommandGroupDescriptor> Groups => _groups.Values.Select(g => g.Group).ToList();
+
+    public bool TryRegister(string moduleId, CommandDescriptor descriptor, ICommandHandler handler, out string? conflictingModule)
+    {
+        conflictingModule = null;
+        if (_commands.TryGetValue(descriptor.Id, out var existing) && !existing.ModuleId.Equals(moduleId, StringComparison.OrdinalIgnoreCase))
+        {
+            conflictingModule = existing.ModuleId;
+            return false;
+        }
+
+        _commands[descriptor.Id] = new CommandRegistration(moduleId, descriptor, handler);
+        return true;
+    }
+
+    public void RegisterGroup(string moduleId, CommandGroupDescriptor group) =>
+        _groups[$"{group.Placement}|{group.Path}"] = (moduleId, group);
+
+    public CommandRegistration? Find(string commandId) =>
+        _commands.TryGetValue(commandId, out var registration) ? registration : null;
+
+    /// <summary>Removes all commands and groups of a module and returns the removed command IDs.</summary>
+    public IReadOnlyList<string> UnregisterModule(string moduleId)
+    {
+        var removed = new List<string>();
+        foreach (var (id, registration) in _commands)
+        {
+            if (registration.ModuleId.Equals(moduleId, StringComparison.OrdinalIgnoreCase) && _commands.TryRemove(id, out _))
+            {
+                removed.Add(id);
+            }
+        }
+
+        foreach (var (key, group) in _groups)
+        {
+            if (group.ModuleId.Equals(moduleId, StringComparison.OrdinalIgnoreCase))
+            {
+                _groups.TryRemove(key, out _);
+            }
+        }
+
+        return removed;
+    }
+}

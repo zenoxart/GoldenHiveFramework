@@ -25,6 +25,7 @@
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Mvvm\GoldenHive.NET.WinUI.Framework.Mvvm.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Commands\GoldenHive.NET.WinUI.Framework.Commands.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Windowing\GoldenHive.NET.WinUI.Framework.Windowing.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.XamlMetadata\GoldenHive.NET.WinUI.Framework.XamlMetadata.csproj" />
   </ItemGroup>
 
 </Project>

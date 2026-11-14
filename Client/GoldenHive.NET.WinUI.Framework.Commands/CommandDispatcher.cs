@@ -1,34 +1,90 @@
-// =============================================================================
-// Project : GoldenHive.NET.WinUI.Framework.Commands
-// File    : CommandDispatcher.cs
-// Layer   : Client / Framework
-// Status  : Architecture sketch - comments only, no implementation yet
-// =============================================================================
-//
-// PURPOSE
-//   The UI dispatcher of the application. Lives inside the RelayCommandPool and is
-//   exposed as RelayCommandPool.Dispatcher; implements IUiDispatcher (Mvvm).
-//   Wraps Microsoft.UI.Dispatching.DispatcherQueue.
-//
-// WHY IN THE COMMAND POOL
-//   Commands are the main bridge between background work and the UI: CanExecuteChanged,
-//   checked state, TreeChanged and execution results must all reach the UI thread of the
-//   right window. Owning the dispatcher in the pool keeps that routing in one place.
-//
-// RESPONSIBILITIES
-//   - Window queues: Register(windowId, DispatcherQueue) / Unregister(windowId),
-//     called by the WindowManager when a window opens/closes. The main window's queue
-//     is the default queue.
-//   - HasThreadAccess, Run(action), RunAsync(func) on the default queue via TryEnqueue.
-//   - Run(windowId, action) for window-specific work (e.g. requery for one window's commands).
-//   - Priority: High for state changes (CanExecute, checked), Normal for everything else.
-//   - Coalescing: several requeries for the same command within one UI frame are merged
-//     into one CanExecuteChanged.
-//   - Shutdown: after the last window closes, reject new work and complete pending tasks.
-//
-// USERS
-//   - RelayCommandPool / PooledCommand: CanExecuteChanged, checked state, TreeChanged.
-//   - CommandExecutor: completion, progress and error notifications.
-//   - ViewModelAppObject and LogManager through ApplicationContext.Dispatcher (IUiDispatcher),
-//     which the ClientAppContext points at this instance.
-//   - NotificationClient: incoming SignalR events.
+using System.Collections.Concurrent;
+using GoldenHive.NET.WinUI.Framework.Mvvm;
+using Microsoft.UI.Dispatching;
+
+namespace GoldenHive.NET.WinUI.Framework.Commands;
+
+/// <summary>
+/// The UI dispatcher of the application. Lives inside the RelayCommandPool (RelayCommandPool.Dispatcher)
+/// and is exposed to the Mvvm layer as <see cref="IUiDispatcher"/>. Keeps one DispatcherQueue per window;
+/// the main window's queue is the default.
+/// </summary>
+public sealed class CommandDispatcher : IUiDispatcher
+{
+    private readonly ConcurrentDictionary<string, DispatcherQueue> _queues = new(StringComparer.OrdinalIgnoreCase);
+    private DispatcherQueue? _default;
+
+    /// <summary>The default (main window) queue, or null before the first window registered.</summary>
+    public DispatcherQueue? Default => _default;
+
+    public bool HasThreadAccess => _default?.HasThreadAccess ?? true;
+
+    /// <summary>Registers the queue of a window (called by the WindowManager).</summary>
+    public void Register(string windowKey, DispatcherQueue queue, bool isDefault = false)
+    {
+        _queues[windowKey] = queue;
+        if (isDefault || _default is null)
+        {
+            _default = queue;
+        }
+    }
+
+    public void Unregister(string windowKey) => _queues.TryRemove(windowKey, out _);
+
+    /// <summary>Runs on the UI thread; directly if already there.</summary>
+    public void Run(Action action)
+    {
+        var queue = _default;
+        if (queue is null || queue.HasThreadAccess)
+        {
+            action();
+            return;
+        }
+
+        queue.TryEnqueue(() => action());
+    }
+
+    /// <summary>Always enqueues (used to coalesce several changes into one UI update).</summary>
+    public void Post(Action action, DispatcherQueuePriority priority = DispatcherQueuePriority.Normal)
+    {
+        var queue = _default;
+        if (queue is null)
+        {
+            action();
+            return;
+        }
+
+        queue.TryEnqueue(priority, () => action());
+    }
+
+    public Task RunAsync(Action action)
+    {
+        var queue = _default;
+        if (queue is null || queue.HasThreadAccess)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var enqueued = queue.TryEnqueue(() =>
+        {
+            try
+            {
+                action();
+                completion.SetResult();
+            }
+            catch (Exception ex)
+            {
+                completion.SetException(ex);
+            }
+        });
+
+        if (!enqueued)
+        {
+            completion.SetCanceled();
+        }
+
+        return completion.Task;
+    }
+}

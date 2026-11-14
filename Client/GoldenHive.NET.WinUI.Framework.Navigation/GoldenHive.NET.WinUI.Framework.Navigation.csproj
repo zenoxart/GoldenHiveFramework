@@ -26,6 +26,7 @@
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Security\GoldenHive.NET.WinUI.Framework.Security.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.XamlMetadata\GoldenHive.NET.WinUI.Framework.XamlMetadata.csproj" />
     <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Docking\GoldenHive.NET.WinUI.Framework.Docking.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Commands\GoldenHive.NET.WinUI.Framework.Commands.csproj" />
   </ItemGroup>
 
 </Project>
