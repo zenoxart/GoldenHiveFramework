@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>GoldenHive.NET.WinUI.Framework.Contracts</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Monads\GoldenHive.NET.WinUI.Framework.Monads.csproj" />
+  </ItemGroup>
+
+</Project>

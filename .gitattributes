@@ -1,0 +1,28 @@
+# Normalize line endings: text files are stored with LF in the repository and
+# checked out with the platform default (CRLF on Windows).
+* text=auto
+
+# Windows-specific files always keep CRLF
+*.sln       text eol=crlf
+*.slnx      text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.cs        text eol=crlf
+*.xaml      text eol=crlf
+*.appxmanifest text eol=crlf
+*.manifest  text eol=crlf
+
+# Shell-style files keep LF (used inside Linux containers)
+Dockerfile  text eol=lf
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.pfx binary
+*.dll binary
+*.exe binary

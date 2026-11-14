@@ -1,0 +1,128 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path="ARCHITECTURE.md" />
+  </Folder>
+  <Folder Name="/Client/">
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Host.Client/GoldenHive.NET.WinUI.Framework.Host.Client.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+      <Deploy />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Commands/GoldenHive.NET.WinUI.Framework.Commands.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.HotSwap/GoldenHive.NET.WinUI.Framework.HotSwap.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.ModuleLoader/GoldenHive.NET.WinUI.Framework.ModuleLoader.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Mvvm/GoldenHive.NET.WinUI.Framework.Mvvm.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Navigation/GoldenHive.NET.WinUI.Framework.Navigation.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.NotificationClient/GoldenHive.NET.WinUI.Framework.NotificationClient.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Security/GoldenHive.NET.WinUI.Framework.Security.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Windowing/GoldenHive.NET.WinUI.Framework.Windowing.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.XamlMetadata/GoldenHive.NET.WinUI.Framework.XamlMetadata.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Workflows/GoldenHive.NET.WinUI.Framework.Workflows.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+    <Project Path="Client/GoldenHive.NET.WinUI.Framework.Docking/GoldenHive.NET.WinUI.Framework.Docking.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+  </Folder>
+  <Folder Name="/Shared/">
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.Contracts/GoldenHive.NET.WinUI.Framework.Contracts.csproj" />
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.ModuleContracts/GoldenHive.NET.WinUI.Framework.ModuleContracts.csproj" />
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.CommandContracts/GoldenHive.NET.WinUI.Framework.CommandContracts.csproj" />
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.NotificationContracts/GoldenHive.NET.WinUI.Framework.NotificationContracts.csproj" />
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.WorkflowContracts/GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj" />
+    <Project Path="Shared/GoldenHive.NET.WinUI.Framework.Monads/GoldenHive.NET.WinUI.Framework.Monads.csproj" />
+  </Folder>
+  <Folder Name="/Backend/">
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.ApiGateway/GoldenHive.NET.WinUI.Framework.Backend.ApiGateway.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService/GoldenHive.NET.WinUI.Framework.Backend.ConfigurationService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.IdentityService/GoldenHive.NET.WinUI.Framework.Backend.IdentityService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.ModuleDeliveryService/GoldenHive.NET.WinUI.Framework.Backend.ModuleDeliveryService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.ModuleRegistryService/GoldenHive.NET.WinUI.Framework.Backend.ModuleRegistryService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.NotificationPoint/GoldenHive.NET.WinUI.Framework.Backend.NotificationPoint.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.UpdateOrchestrator/GoldenHive.NET.WinUI.Framework.Backend.UpdateOrchestrator.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.WorkflowService/GoldenHive.NET.WinUI.Framework.Backend.WorkflowService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.AiAgentService/GoldenHive.NET.WinUI.Framework.Backend.AiAgentService.csproj" />
+    <Project Path="Backend/GoldenHive.NET.WinUI.Framework.Backend.Core/GoldenHive.NET.WinUI.Framework.Backend.Core.csproj" />
+  </Folder>
+  <Folder Name="/Modules/" />
+  <Folder Name="/Modules/DocumentManagement/">
+    <File Path="Modules/DocumentManagement/manifest.jsonc" />
+    <Project Path="Modules/DocumentManagement/Backend/GoldenHive.NET.Modules.DocumentManagement.Backend.csproj" />
+    <Project Path="Modules/DocumentManagement/Client/GoldenHive.NET.Modules.DocumentManagement.Client.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+  </Folder>
+  <Folder Name="/Modules/Reporting/">
+    <File Path="Modules/Reporting/manifest.jsonc" />
+    <Project Path="Modules/Reporting/Backend/GoldenHive.NET.Modules.Reporting.Backend.csproj" />
+    <Project Path="Modules/Reporting/Client/GoldenHive.NET.Modules.Reporting.Client.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+  </Folder>
+  <Folder Name="/Modules/UserManagement/">
+    <File Path="Modules/UserManagement/manifest.jsonc" />
+    <Project Path="Modules/UserManagement/Backend/GoldenHive.NET.Modules.UserManagement.Backend.csproj" />
+    <Project Path="Modules/UserManagement/Client/GoldenHive.NET.Modules.UserManagement.Client.csproj">
+      <Platform Solution="*|ARM64" Project="ARM64" />
+      <Platform Solution="*|x64" Project="x64" />
+      <Platform Solution="*|x86" Project="x86" />
+    </Project>
+  </Folder>
+  <Folder Name="/Deployment/">
+    <File Path="Deployment/CI-CD/pipeline.yml" />
+    <File Path="Deployment/Docker/docker-compose.yml" />
+    <File Path="Deployment/Kubernetes/module-deployment-template.yaml" />
+    <File Path="Deployment/ModulePackages/README.md" />
+    <File Path="Deployment/Msix/README.md" />
+  </Folder>
+</Solution>

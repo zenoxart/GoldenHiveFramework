@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>GoldenHive.NET.WinUI.Framework.WorkflowContracts</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.CommandContracts\GoldenHive.NET.WinUI.Framework.CommandContracts.csproj" />
+  </ItemGroup>
+
+</Project>

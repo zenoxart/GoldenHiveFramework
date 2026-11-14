@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "GoldenHive.NET.WinUI.Framework.Host.Client (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "GoldenHive.NET.WinUI.Framework.Host.Client (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

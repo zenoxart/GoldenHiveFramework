@@ -1,0 +1,24 @@
+# =============================================================================
+# Project : Deployment
+# File    : docker-compose.yml
+# Layer   : Deployment
+# Status  : Architecture sketch - comments only, no implementation yet
+# =============================================================================
+#
+# PURPOSE
+#   Local and small environments with Docker Compose.
+#
+# SERVICES
+#   api-gateway, identity-service, module-registry, module-delivery, update-orchestrator,
+#   notification-point, configuration-service,
+#   user-module, document-service, reporting-module,
+#   infrastructure: database, event bus (RabbitMQ), object storage for packages.
+#
+# RULES
+#   - Only the gateway exposes a port to the outside.
+#   - depends_on with condition: service_healthy.
+#   - Secrets via .env or Docker secrets, never in the repository.
+#
+# WORKFLOWS
+#   workflow-service and ai-agent-service join the services above; ai-agent-service gets
+#   outbound access to the AI provider only, through an egress proxy.

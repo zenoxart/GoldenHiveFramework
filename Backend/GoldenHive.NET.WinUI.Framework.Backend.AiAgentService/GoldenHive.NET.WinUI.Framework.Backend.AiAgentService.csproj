@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>GoldenHive.NET.WinUI.Framework.Backend.AiAgentService</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Library until Program.cs is implemented (it contains comments only, so there is no entry point yet).
+         Remove this line to build the service as an executable. -->
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.Contracts\GoldenHive.NET.WinUI.Framework.Contracts.csproj" />
+    <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.CommandContracts\GoldenHive.NET.WinUI.Framework.CommandContracts.csproj" />
+    <ProjectReference Include="..\..\Shared\GoldenHive.NET.WinUI.Framework.WorkflowContracts\GoldenHive.NET.WinUI.Framework.WorkflowContracts.csproj" />
+    <ProjectReference Include="..\GoldenHive.NET.WinUI.Framework.Backend.Core\GoldenHive.NET.WinUI.Framework.Backend.Core.csproj" />
+  </ItemGroup>
+
+</Project>
